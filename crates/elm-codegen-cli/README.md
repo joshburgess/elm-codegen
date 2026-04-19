@@ -51,6 +51,6 @@ directly. The reference CLI uses the defaults.
 
 ## License
 
-MIT
+Dual licensed under [Apache 2.0](../../LICENSE-APACHE) or [MIT](../../LICENSE-MIT).
 
 [`elm-codegen-builder`]: https://crates.io/crates/elm-codegen-builder

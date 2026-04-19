@@ -179,4 +179,4 @@ without any extra wiring on the Elm side.
 
 ## License
 
-MIT
+Dual licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).

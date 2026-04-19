@@ -57,4 +57,4 @@ decoder/encoder). The Elm field name is independently camelCased.
 
 ## License
 
-MIT
+Dual licensed under [Apache 2.0](../../LICENSE-APACHE) or [MIT](../../LICENSE-MIT).
