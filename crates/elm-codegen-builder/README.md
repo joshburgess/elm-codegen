@@ -1,9 +1,9 @@
 # elm-codegen-builder
 
-Build Elm AST modules (records, decoders, encoders, imports) from
-`elm-codegen-core` type info. Pair with
-[`elm-ast`](https://crates.io/crates/elm-ast)'s `pretty_print` to emit
-`elm-format`-style source.
+Build [`elm-ast`](https://crates.io/crates/elm-ast) modules (records,
+decoders, encoders, imports) from `elm-codegen-core` type info, then
+render them with `elm_ast::pretty_print` to emit `elm-format`-style
+source.
 
 ## Usage
 

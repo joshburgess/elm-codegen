@@ -5,8 +5,8 @@ Generate Elm types, decoders, and encoders from your Rust types.
 Annotate a Rust struct with `#[derive(ElmType)]`, point a small CLI (or
 your own binary) at the resulting registry, and get well-formatted
 `.elm` modules out the other end. Built on top of
-[`elm-ast`](https://crates.io/crates/elm-ast) for layout-aware
-pretty-printing.
+[`elm-ast`](https://crates.io/crates/elm-ast) for both AST
+construction and layout-aware pretty-printing.
 
 ```rust
 use elm_codegen_core::ElmType;
