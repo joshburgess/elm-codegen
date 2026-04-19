@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use elm_codegen_core::ElmTypeInfo;
 
-/// One entry per Elm type known to the codegen — populated from
+/// One entry per Elm type known to the codegen, populated from
 /// `ElmTypeInfo` and any consumer-supplied externs.
 #[derive(Clone)]
 pub struct NameEntry {
@@ -35,8 +35,8 @@ impl NameMap {
         NameMap { map }
     }
 
-    /// Register a type that wasn't picked up via `ElmType` — e.g. a
-    /// hand-written helper module the consumer ships.
+    /// Register a type that wasn't picked up via `ElmType` (e.g. a
+    /// hand-written helper module the consumer ships).
     pub fn register(
         &mut self,
         rust_name: impl Into<String>,

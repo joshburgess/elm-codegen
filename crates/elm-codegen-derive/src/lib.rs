@@ -6,17 +6,17 @@ use syn::{parse_macro_input, Attribute, Data, DeriveInput, Fields, Lit, Type, Ty
 ///
 /// # Container attributes
 ///
-/// - `#[elm(module = "Api.Person")]` — Elm module path (required)
-/// - `#[elm(name = "Person")]` — Elm type name (required)
-/// - `#[elm(tags = "entity,response")]` — comma-separated free-form tags
+/// - `#[elm(module = "Api.Person")]`: Elm module path (required)
+/// - `#[elm(name = "Person")]`: Elm type name (required)
+/// - `#[elm(tags = "entity,response")]`: comma-separated free-form tags
 ///   that downstream tooling can branch on (optional)
 ///
 /// # Field attributes
 ///
-/// - `#[elm(skip)]` — exclude this field from the Elm type
-/// - `#[elm(type = "CustomElmType")]` — override the inferred Elm type
-/// - `#[elm(name = "customName")]` — override the camelCase field name
-/// - `#[elm(decoder = "customDecoder")]` — substitute a decoder expression
+/// - `#[elm(skip)]`: exclude this field from the Elm type
+/// - `#[elm(type = "CustomElmType")]`: override the inferred Elm type
+/// - `#[elm(name = "customName")]`: override the camelCase field name
+/// - `#[elm(decoder = "customDecoder")]`: substitute a decoder expression
 ///
 /// `#[serde(rename = "...")]` and `#[serde(rename_all = "...")]` are
 /// honored when computing the JSON key.

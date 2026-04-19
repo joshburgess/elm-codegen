@@ -77,11 +77,11 @@ elm-codegen-builder = "0.1"
 Annotate types throughout your crate with `#[derive(ElmType)]`, then
 either:
 
-1. **Use the reference CLI** — install with
+1. **Use the reference CLI**: install with
    `cargo install elm-codegen-cli`, then write a thin binary in your
    workspace that adds `use my_schema_crate as _;` to force-link your
    types and re-uses the CLI.
-2. **Roll your own binary** — call
+2. **Roll your own binary**: call
    `elm_codegen_core::registered_types()`, apply your own
    `TypeOverrides` and `BuildStrategy`, then iterate
    `elm_codegen_builder::group_by_module(&types)` and write each
@@ -147,7 +147,7 @@ impl BuildStrategy for MyStrategy {
 }
 ```
 
-`tags` are deliberately just strings — pick whatever vocabulary fits
+`tags` are deliberately just strings. Pick whatever vocabulary fits
 your codebase (`"response"`, `"input"`, `"filter"`, `"upsert"`, etc.)
 and let your strategy decide what they mean.
 
@@ -156,7 +156,7 @@ and let your strategy decide what they mean.
 Elm's `Json.Encode` module doesn't ship a built-in helper for
 encoding a `Maybe a` (you'd have to write
 `case x of Just v -> encodeA v; Nothing -> Encode.null` every time).
-Most projects pull one in — usually
+Most projects pull one in, usually
 [`Json.Encode.Extra.maybe`](https://package.elm-lang.org/packages/elm-community/json-extra/latest/Json-Encode-Extra#maybe)
 from `elm-community/json-extra`, but you may have your own helper in a
 project module instead. `MaybeEncoderRef` tells the builder which one

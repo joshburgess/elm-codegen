@@ -35,7 +35,7 @@ pub struct ElmFieldInfo {
     pub elm_name: &'static str,
     /// The Elm type the field maps to.
     pub elm_type: ElmTypeRepr,
-    /// Whether the field came from `Option<T>` — emitted as `optional`
+    /// Whether the field came from `Option<T>`. Emitted as `optional`
     /// rather than `required` in the generated decoder.
     pub is_optional: bool,
     /// Override decoder expression set via `#[elm(decoder = "...")]`.
@@ -53,14 +53,14 @@ pub enum ElmTypeRepr {
     Int,
     Float,
     Bool,
-    /// `chrono::DateTime<_>` — typically rendered as `Time.Posix` and
+    /// `chrono::DateTime<_>`. Typically rendered as `Time.Posix` and
     /// decoded via `Iso8601.decoder`.
     Posix,
-    /// `chrono::NaiveDate` — rendered as `String` (ISO date string).
+    /// `chrono::NaiveDate`. Rendered as `String` (ISO date string).
     IsoDate,
     Maybe(Box<ElmTypeRepr>),
     List(Box<ElmTypeRepr>),
-    /// A named type defined elsewhere — usually another struct that also
+    /// A named type defined elsewhere, usually another struct that also
     /// derives `ElmType`. Consumers may also use this for codebase-specific
     /// types they later remap via the override layer.
     Custom(String),
@@ -68,7 +68,7 @@ pub enum ElmTypeRepr {
 
 /// Metadata for a single Rust struct that maps to an Elm type.
 ///
-/// `tags` is an open-ended labeling channel — consumers attach project
+/// `tags` is an open-ended labeling channel. Consumers attach project
 /// conventions like `"entity"`, `"response"`, `"upsert_input"` and decide
 /// downstream how those affect generation.
 #[derive(Clone, Debug)]
@@ -110,7 +110,7 @@ inventory::collect!(ElmTypeRegistration);
 
 /// Materialize every type registered via `#[derive(ElmType)]`.
 ///
-/// Iteration order follows link order — call `.sort_by(...)` on the
+/// Iteration order follows link order. Call `.sort_by(...)` on the
 /// result if you need deterministic output.
 pub fn registered_types() -> Vec<ElmTypeInfo> {
     inventory::iter::<ElmTypeRegistration>()

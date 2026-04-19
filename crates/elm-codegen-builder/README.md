@@ -36,7 +36,7 @@ for (module_path, group) in group_by_module(&types) {
 ### `BuildStrategy`
 
 Per-type policy hooks. `DefaultStrategy` emits both a decoder and an
-encoder for every type, which isn't always what you want — read-only
+encoder for every type, which isn't always what you want. Read-only
 response types don't need encoders, and query filter types don't need
 decoders. Implement the trait to skip declarations based on the type
 name, module path, or the `tags` set with `#[elm(tags = "...")]`:
@@ -52,7 +52,7 @@ impl BuildStrategy for MyStrategy {
 }
 ```
 
-Tags are deliberately just strings — pick whatever vocabulary fits
+Tags are deliberately just strings. Pick whatever vocabulary fits
 your codebase (`"response"`, `"input"`, `"filter"`, `"upsert"`, etc.)
 and let your strategy decide what they mean.
 
@@ -62,14 +62,14 @@ Codebase-wide rewrites applied to `ElmTypeRepr::Custom(_)` references.
 Useful for mapping project-specific Rust types (e.g. `BigDecimal`) to
 Elm primitives without per-field annotations.
 
-Per-field `#[elm(type = "...")]` overrides take precedence — they are
-applied at derive time, before the builder ever sees the
+Per-field `#[elm(type = "...")]` overrides take precedence, since
+they are applied at derive time, before the builder ever sees the
 `ElmTypeInfo`.
 
 ### `MaybeEncoderRef`
 
 Elm's `Json.Encode` module doesn't ship a built-in helper for encoding
-a `Maybe a`. Most projects pull one in — usually
+a `Maybe a`. Most projects pull one in, usually
 [`Json.Encode.Extra.maybe`](https://package.elm-lang.org/packages/elm-community/json-extra/latest/Json-Encode-Extra#maybe)
 from `elm-community/json-extra`, but you may have your own helper in a
 project module instead. `MaybeEncoderRef` tells the builder which one

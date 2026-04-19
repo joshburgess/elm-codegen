@@ -96,7 +96,7 @@ pub fn record_access(record: Spanned<Expr>, field: &str) -> Spanned<Expr> {
     })
 }
 
-/// Case expression — useful for enum decoders.
+/// Case expression. Useful for enum decoders.
 pub fn case_of(
     expr: Spanned<Expr>,
     branches: Vec<(Spanned<elm_ast::pattern::Pattern>, Spanned<Expr>)>,

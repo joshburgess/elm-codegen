@@ -6,10 +6,10 @@ workspace.
 
 This crate defines:
 
-- `ElmTypeInfo` / `ElmFieldInfo` / `ElmTypeRepr` — the data the rest
+- `ElmTypeInfo` / `ElmFieldInfo` / `ElmTypeRepr`: the data the rest
   of the pipeline operates on.
-- The `ElmType` trait — implemented by `#[derive(ElmType)]`.
-- `ElmTypeRegistration` and `registered_types()` — an
+- The `ElmType` trait, implemented by `#[derive(ElmType)]`.
+- `ElmTypeRegistration` and `registered_types()`: an
   [`inventory`](https://crates.io/crates/inventory)-backed registry
   populated automatically by every `#[derive(ElmType)]`.
 
@@ -35,7 +35,7 @@ fn main() {
 
 ## Features
 
-- `derive` (default) — re-exports `#[derive(ElmType)]` from
+- `derive` (default): re-exports `#[derive(ElmType)]` from
   `elm-codegen-derive`. Disable if you want to implement `ElmType`
   by hand.
 

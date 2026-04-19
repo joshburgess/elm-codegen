@@ -28,7 +28,7 @@ impl TypeOverrides {
     /// Register an override mapping for a given Rust type name.
     ///
     /// Per-field `#[elm(type = "...")]` overrides take precedence over
-    /// these — they are applied at derive time, before this layer ever
+    /// these, since they are applied at derive time, before this layer ever
     /// sees the `ElmTypeInfo`.
     pub fn alias(&mut self, rust_name: impl Into<String>, repr: ElmTypeRepr) -> &mut Self {
         self.aliases.insert(rust_name.into(), repr);

@@ -10,8 +10,8 @@
 //! into the global `inventory` collector. If you depend on a crate
 //! that *only* contributes via these initializers, you must reference
 //! it from your binary so rustc keeps its rlib linked. The cleanest
-//! pattern is `use my_schema_crate as _;` at the top of `main.rs` —
-//! this CLI is a *reference* and doesn't pull in any user crate by
+//! pattern is `use my_schema_crate as _;` at the top of `main.rs`.
+//! This CLI is a *reference* and doesn't pull in any user crate by
 //! default. Roll your own binary if you need to ship something
 //! preconfigured for a specific schema.
 
