@@ -143,7 +143,10 @@ fn main() -> std::io::Result<()> {
     let names = NameMap::from_types(&types);
 
     // `group_by_module` returns a `BTreeMap`, so modules are already
-    // iterated in sorted module-path order.
+    // iterated in sorted module-path order. For very large schemas,
+    // swap this loop for `rayon::prelude::*` + `.into_par_iter()` on
+    // the grouped map. Each module writes to a distinct file, so the
+    // output is unchanged.
     for (module_path, group) in group_by_module(&types) {
         let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
 
