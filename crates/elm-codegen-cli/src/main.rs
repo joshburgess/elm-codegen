@@ -82,7 +82,11 @@ fn main() -> Result<()> {
         write_module(&cli.output, module_path, &module)?;
         println!("Generated {}", module_path.join("."));
     }
-    println!("\nGenerated {} type modules in {}", targets.len(), cli.output.display());
+    println!(
+        "\nGenerated {} type modules in {}",
+        targets.len(),
+        cli.output.display()
+    );
     Ok(())
 }
 
@@ -99,7 +103,11 @@ fn collect_types(overrides: &TypeOverrides) -> Vec<ElmTypeInfo> {
     types
 }
 
-fn write_module(output_dir: &Path, module_path: &[&str], module: &elm_ast::file::ElmModule) -> Result<()> {
+fn write_module(
+    output_dir: &Path,
+    module_path: &[&str],
+    module: &elm_ast::file::ElmModule,
+) -> Result<()> {
     let mut file_path = output_dir.to_path_buf();
     for segment in module_path {
         file_path.push(segment);
@@ -115,4 +123,3 @@ fn write_module(output_dir: &Path, module_path: &[&str], module: &elm_ast::file:
         .with_context(|| format!("writing {}", file_path.display()))?;
     Ok(())
 }
-

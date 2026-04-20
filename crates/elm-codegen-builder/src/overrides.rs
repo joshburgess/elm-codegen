@@ -35,10 +35,13 @@ impl TypeOverrides {
         self
     }
 
-    /// Apply the rewrites to every field of an `ElmTypeInfo`.
+    /// Apply the rewrites to every field of an `ElmTypeInfo`. No-op
+    /// for enum types (they have no field types to rewrite).
     pub fn apply(&self, mut info: ElmTypeInfo) -> ElmTypeInfo {
-        for field in &mut info.fields {
-            field.elm_type = self.rewrite(&field.elm_type);
+        if let elm_codegen_core::ElmTypeKind::Record { fields } = &mut info.kind {
+            for field in fields {
+                field.elm_type = self.rewrite(&field.elm_type);
+            }
         }
         info
     }
@@ -56,4 +59,3 @@ impl TypeOverrides {
         }
     }
 }
-
