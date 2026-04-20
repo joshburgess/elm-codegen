@@ -55,8 +55,8 @@ pub trait ElmType {
 
 Built-in blanket impls:
 
-- `impl ElmType for ()` — unit, sentinel `ElmTypeInfo`.
-- `impl<T: ElmType> ElmType for Vec<T>` — wrapper, composes `List T`.
+- `impl ElmType for ()`: unit, sentinel `ElmTypeInfo`.
+- `impl<T: ElmType> ElmType for Vec<T>`: wrapper, composes `List T`.
 
 ## Data model
 
@@ -112,13 +112,13 @@ pub enum EnumRepresentation {
 }
 ```
 
-- **`BareString`** — unit-only enum. Each variant serializes as a
+- **`BareString`**: unit-only enum. Each variant serializes as a
   plain string.
-- **`InternallyTagged { tag_key }`** — `#[serde(tag = "...")]`.
+- **`InternallyTagged { tag_key }`**: `#[serde(tag = "...")]`.
   Variants serialize as objects with the tag key set to the variant
   name; unit variants produce `{ "<tag>": "..." }`; struct and
   newtype payloads have their fields flattened alongside the tag.
-- **`Untagged`** — `#[serde(untagged)]`. Each variant's inner shape
+- **`Untagged`**: `#[serde(untagged)]`. Each variant's inner shape
   is encoded directly with no discriminator. Decoding tries variants
   in declaration order.
 

@@ -2,11 +2,11 @@
 
 Proc-macros for [`elm-codegen`](https://github.com/joshburgess/elm-codegen):
 
-- `#[derive(ElmType)]` — registers a Rust type with the
+- `#[derive(ElmType)]`: registers a Rust type with the
   [`elm-codegen-core`](https://crates.io/crates/elm-codegen-core)
   registry so downstream tooling can emit the matching Elm type,
   decoder, and encoder.
-- `#[elm_endpoint(...)]` — registers an Axum-style handler with the
+- `#[elm_endpoint(...)]`: registers an Axum-style handler with the
   [`elm-codegen-http`](https://crates.io/crates/elm-codegen-http)
   registry so downstream tooling can emit the matching Elm request
   function.
@@ -83,22 +83,22 @@ For internally-tagged enums whose newtype variants carry another
 internally-tagged enum or struct, the generated Elm encoder flattens
 the inner JSON object alongside the tag key (matching serde's wire
 format). This produces a small private `mergeTaggedObject` helper in
-the generated Elm module — see `elm-codegen-builder` for details.
+the generated Elm module. See `elm-codegen-builder` for details.
 
 ### Rejected inputs
 
 `#[derive(ElmType)]` refuses to produce a codec for shapes with no
 canonical JSON form:
 
-- Generic types (`struct Page<T> { ... }`) — the registry
+- Generic types (`struct Page<T> { ... }`): the registry
   materializes one declaration per Rust type with no way to
   monomorphize. Define a concrete wrapper per instantiation instead.
-- Unit structs (`struct Empty;`) — no JSON shape.
-- Multi-field tuple structs (`struct Pair(A, B)`) — no canonical
+- Unit structs (`struct Empty;`): no JSON shape.
+- Multi-field tuple structs (`struct Pair(A, B)`): no canonical
   JSON shape; use a struct with named fields.
-- Unions — JSON has no union concept.
-- Tuples of arity 4+ — Elm's tuple support stops at 3.
-- Maps with non-`String` keys — JSON object keys are always strings.
+- Unions: JSON has no union concept.
+- Tuples of arity 4+: Elm's tuple support stops at 3.
+- Maps with non-`String` keys: JSON object keys are always strings.
 
 ## Serde compatibility
 
@@ -108,8 +108,8 @@ Recognized serde attributes:
 - `#[serde(rename_all = "...")]` on containers. Conventions: `lowercase`,
   `UPPERCASE`, `PascalCase`, `camelCase`, `snake_case`,
   `SCREAMING_SNAKE_CASE`, `kebab-case`, `SCREAMING-KEBAB-CASE`.
-- `#[serde(tag = "...")]` — internally tagged enum.
-- `#[serde(untagged)]` — untagged enum.
+- `#[serde(tag = "...")]`: internally tagged enum.
+- `#[serde(untagged)]`: untagged enum.
 
 Rename attributes affect the JSON key (what the decoder/encoder use
 on the wire). The Elm field name is independently camelCased from the

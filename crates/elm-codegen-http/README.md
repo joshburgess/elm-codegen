@@ -129,7 +129,7 @@ pub trait ElmPathParams {
 Helper for `Path<T>`: how a `T` decomposes into one or more path
 parameters. Blanket impls provided:
 
-- `impl<T: ElmScalar> ElmPathParams for T` — single-slot `Path<T>`.
+- `impl<T: ElmScalar> ElmPathParams for T`: single-slot `Path<T>`.
 - Tuple impls for arities 2 through 8 over `ElmScalar`.
 
 Users implement this directly for single-typed structs pulled from
