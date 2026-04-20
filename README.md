@@ -110,6 +110,9 @@ my-schema = { path = "../my-schema" }
 
 ```rust
 // my-codegen/src/main.rs
+use std::fs;
+use std::path::PathBuf;
+
 use my_schema as _;   // force-link the schema crate (see "Linking note" below)
 
 use elm_codegen_builder::{
@@ -118,21 +121,45 @@ use elm_codegen_builder::{
 };
 use elm_codegen_core::registered_types;
 
-fn main() {
+fn main() -> std::io::Result<()> {
+    let out_dir = PathBuf::from("./elm/src");
+
     let overrides = TypeOverrides::new();
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
-    let types: Vec<_> = registered_types()
+    let mut types: Vec<_> = registered_types()
         .into_iter()
         .map(|t| overrides.apply(t))
         .collect();
+    // `inventory` yields types in link order, which shifts whenever
+    // dependencies change. Sort by (module_path, type_name) so the
+    // emitted output stays stable across unrelated rebuilds.
+    types.sort_by(|a, b| {
+        a.module_path
+            .cmp(&b.module_path)
+            .then_with(|| a.type_name.cmp(b.type_name))
+    });
     let names = NameMap::from_types(&types);
 
+    // `group_by_module` returns a `BTreeMap`, so modules are already
+    // iterated in sorted module-path order.
     for (module_path, group) in group_by_module(&types) {
         let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
-        // ... write `elm_ast::pretty_print(&module)` to disk
+
+        // Map ["Api", "Person"] -> ./elm/src/Api/Person.elm.
+        let mut file_path = out_dir.clone();
+        for segment in &module_path {
+            file_path.push(segment);
+        }
+        file_path.set_extension("elm");
+
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&file_path, elm_ast::pretty_print(&module))?;
     }
+    Ok(())
 }
 ```
 
