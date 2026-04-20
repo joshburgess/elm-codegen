@@ -194,7 +194,7 @@ fn build_imports(
     imports
 }
 
-/// Append a request function (from a [`RequestStyle`]) into an
+/// Append a request function (from a [`crate::RequestStyle`]) into an
 /// existing module: pushes its declarations onto the end and merges
 /// its imports into the module's import list, deduplicating by
 /// module name and unioning the `exposing` sets.
