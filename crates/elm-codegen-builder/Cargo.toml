@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 elm-codegen-core.workspace = true
+elm-codegen-http.workspace = true
 elm-ast.workspace = true
 
 [dev-dependencies]

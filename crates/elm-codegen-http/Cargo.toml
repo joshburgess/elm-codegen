@@ -1,0 +1,29 @@
+[package]
+name = "elm-codegen-http"
+description = "HTTP endpoint metadata for elm-codegen. Pairs with #[elm_endpoint] to register handlers for Elm request-function generation."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+elm-codegen-core.workspace = true
+elm-codegen-derive = { workspace = true, optional = true }
+inventory.workspace = true
+axum = { version = "0.6", optional = true }
+axum-extra = { version = "0.7", optional = true, features = ["query"] }
+uuid = { version = "1", optional = true }
+
+[features]
+default = ["derive"]
+derive = ["dep:elm-codegen-derive"]
+axum = ["dep:axum"]
+axum-extra = ["dep:axum-extra", "axum"]
+uuid = ["dep:uuid"]
+
+[dev-dependencies]
+elm-codegen-core = { workspace = true, features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+axum = "0.6"

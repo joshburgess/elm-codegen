@@ -4,6 +4,7 @@ members = [
     "crates/elm-codegen-core",
     "crates/elm-codegen-derive",
     "crates/elm-codegen-builder",
+    "crates/elm-codegen-http",
     "crates/elm-codegen-cli",
 ]
 
@@ -18,6 +19,7 @@ authors = ["Josh Burgess"]
 elm-codegen-core = { path = "crates/elm-codegen-core", version = "0.1.0", default-features = false }
 elm-codegen-derive = { path = "crates/elm-codegen-derive", version = "0.1.0" }
 elm-codegen-builder = { path = "crates/elm-codegen-builder", version = "0.1.0" }
+elm-codegen-http = { path = "crates/elm-codegen-http", version = "0.1.0" }
 
 elm-ast = "0.2.0"
 inventory = "0.3"

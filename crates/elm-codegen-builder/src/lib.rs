@@ -6,21 +6,27 @@
 
 mod decoder;
 mod encoder;
+mod endpoint;
 mod helpers;
 pub mod module_builder;
 mod name_map;
 mod overrides;
+mod request_style;
 mod strategy;
 mod type_builder;
 
 pub use decoder::build_decoder;
 pub use encoder::build_encoder;
+pub use endpoint::{normalize_endpoint, EndpointSlots, PathSegment};
 pub use helpers::{
     case_of, import_as, import_as_exposing, import_exposing, list_multiline, pipeline_chain,
-    record_access, tqualified, trecord,
+    record_access, record_multiline, tqualified, trecord,
 };
-pub use module_builder::{build_merged_module, group_by_module, MaybeEncoderRef};
+pub use module_builder::{
+    build_merged_module, group_by_module, merge_request_into_module, MaybeEncoderRef,
+};
 pub use name_map::{NameEntry, NameMap};
 pub use overrides::TypeOverrides;
+pub use request_style::{DefaultRequestStyle, RequestFunctionOutput, RequestStyle};
 pub use strategy::{BuildStrategy, DefaultStrategy};
-pub use type_builder::{build_type_alias, uses_posix};
+pub use type_builder::build_type_declaration;

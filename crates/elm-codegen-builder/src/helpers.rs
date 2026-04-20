@@ -1,6 +1,6 @@
 use elm_ast::builder::spanned;
 use elm_ast::exposing::{ExposedItem, Exposing};
-use elm_ast::expr::{CaseBranch, Expr};
+use elm_ast::expr::{CaseBranch, Expr, RecordSetter};
 use elm_ast::import::Import;
 use elm_ast::node::Spanned;
 use elm_ast::operator::InfixDirection;
@@ -16,7 +16,25 @@ fn line_span(line: u32) -> Span {
     Span::new(pos, pos)
 }
 
-fn on_distinct_lines<T>(items: Vec<Spanned<T>>) -> Vec<Spanned<T>> {
+/// Span covering lines `start..=end` (column 1, offset 0). Used as a
+/// container's wrapper span so the printer's multi-line predicates
+/// (`type_ann_spans_multi_lines`, `type_arm_is_multiline`) trigger.
+fn multi_line_span(start: u32, end: u32) -> Span {
+    Span::new(
+        Position {
+            offset: 0,
+            line: start,
+            column: 1,
+        },
+        Position {
+            offset: 0,
+            line: end,
+            column: 1,
+        },
+    )
+}
+
+pub(crate) fn on_distinct_lines<T>(items: Vec<Spanned<T>>) -> Vec<Spanned<T>> {
     items
         .into_iter()
         .enumerate()
@@ -47,6 +65,10 @@ pub fn tqualified(
 /// , name : String
 /// }
 /// ```
+///
+/// Sets distinct line spans on each field AND on the outer wrapper
+/// so the printer triggers multi-line layout in both top-level type
+/// alias position and inside a function signature arm.
 pub fn trecord(fields: Vec<(&str, Spanned<TypeAnnotation>)>) -> Spanned<TypeAnnotation> {
     let field_nodes: Vec<Spanned<RecordField>> = fields
         .into_iter()
@@ -57,7 +79,39 @@ pub fn trecord(fields: Vec<(&str, Spanned<TypeAnnotation>)>) -> Spanned<TypeAnno
             })
         })
         .collect();
-    spanned(TypeAnnotation::Record(on_distinct_lines(field_nodes)))
+    let n = field_nodes.len() as u32;
+    let nodes = on_distinct_lines(field_nodes);
+    let mut sp = spanned(TypeAnnotation::Record(nodes));
+    // Single-field records stay on one line. The printer's multi-line
+    // record paths (`write_type_multiline`, `type_arm_is_multiline`)
+    // only fire on records with 2+ fields, but we still need to bump
+    // the wrapper span so callers like function-signature arms see the
+    // record as "spans multiple source lines".
+    if n >= 2 {
+        sp.span = multi_line_span(1, n);
+    }
+    sp
+}
+
+/// Multi-line record expression:
+///
+/// ```elm
+/// { method = "GET"
+/// , headers = []
+/// }
+/// ```
+pub fn record_multiline(fields: Vec<(impl Into<String>, Spanned<Expr>)>) -> Spanned<Expr> {
+    let setters: Vec<Spanned<RecordSetter>> = fields
+        .into_iter()
+        .map(|(name, value)| {
+            spanned(RecordSetter {
+                field: spanned(name.into()),
+                value,
+                trailing_comment: None,
+            })
+        })
+        .collect();
+    spanned(Expr::Record(on_distinct_lines(setters)))
 }
 
 /// Left-associative pipeline `first |> s1 |> s2 |> ...` with each stage
