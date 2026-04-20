@@ -338,6 +338,41 @@ Pre-1.0. The data model is additive-but-breaking: adding a new variant
 to an enum like `ElmTypeRepr` bumps the minor version. Pin to a
 specific minor range (`"0.2"`) in your `Cargo.toml` to avoid surprises.
 
+## Testing
+
+The workspace ships with layered test coverage:
+
+- **Unit tests** across every crate cover the derive macro's attribute
+  parser, the builder's name-map and type-override passes, the endpoint
+  normalization pass, and the core data model.
+- **`trybuild` compile-fail / compile-pass cases**
+  (`crates/elm-codegen-derive-tests`) pin the errors the derive macro
+  emits for unsupported shapes (generics, multi-field tuple structs,
+  unions, arity-4+ tuples, non-`String` map keys, externally-tagged
+  enums, etc.) and verify that accepted shapes still compile.
+- **`insta` snapshot tests**
+  (`crates/elm-codegen-builder/tests/snapshot.rs`) pin the full
+  pretty-printed Elm output for representative record, newtype,
+  bare-string enum, internally-tagged enum, untagged enum, tuple-field,
+  and `mergeTaggedObject` module shapes. Formatting or pretty-printer
+  regressions surface as reviewable diffs rather than passing silently.
+- **CLI smoke tests** (`crates/elm-codegen-cli/tests`) exercise both
+  the library entry point and the compiled binary: dry-run banner
+  output, file-per-module write layout, name filtering, empty-registry
+  errors, `--help` output, and exit codes.
+- **Property tests** (`proptest`) cover the path-template parser's
+  round-trip invariant, `TypeOverrides::apply` idempotency across
+  nested `Maybe`/`List`/`Dict`/`Tuple`/`Custom` trees, and
+  `group_by_module`'s count-preservation and partition-by-module-path
+  laws.
+
+Run the full suite with `cargo test --workspace`. To regenerate
+snapshots after an intentional formatting change, run
+`INSTA_UPDATE=always cargo test -p elm-codegen-builder --test snapshot`
+(or use `cargo insta review` for an interactive diff). Trybuild
+`.stderr` files are regenerated with `TRYBUILD=overwrite cargo test -p
+elm-codegen-derive-tests`.
+
 ## License
 
 Dual licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
