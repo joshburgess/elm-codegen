@@ -8,6 +8,7 @@ use elm_ast::import::Import;
 use elm_ast::module_header::ModuleHeader;
 use elm_ast::node::Spanned;
 use elm_codegen_core::{ElmTypeInfo, ElmTypeKind, ElmTypeRepr, ElmVariantPayload};
+use elm_codegen_http::ElmEndpointInfo;
 
 use crate::request_style::RequestFunctionOutput;
 
@@ -46,6 +47,29 @@ pub fn group_by_module<'a>(
     for info in types {
         let key: Vec<&str> = info.module_path.to_vec();
         groups.entry(key).or_default().push(info);
+    }
+    groups
+}
+
+/// Group `ElmEndpointInfo` values by their target module path, with
+/// entries within each module sorted by Elm function name.
+///
+/// `inventory` yields endpoints in link order, which shifts whenever
+/// dependencies change. Sorting here keeps emitted request functions
+/// in stable alphabetical order so regenerated output doesn't drift
+/// across unrelated rebuilds.
+pub fn group_endpoints_by_module<'a>(
+    endpoints: &'a [ElmEndpointInfo],
+) -> BTreeMap<Vec<&'a str>, Vec<&'a ElmEndpointInfo>> {
+    let mut groups: BTreeMap<Vec<&'a str>, Vec<&'a ElmEndpointInfo>> = BTreeMap::new();
+    for ep in endpoints {
+        groups
+            .entry(ep.elm_module_path.to_vec())
+            .or_default()
+            .push(ep);
+    }
+    for eps in groups.values_mut() {
+        eps.sort_by_key(|ep| ep.elm_function_name);
     }
     groups
 }
@@ -380,5 +404,63 @@ fn repr_uses_maybe(r: &ElmTypeRepr) -> bool {
         ElmTypeRepr::List(i) | ElmTypeRepr::Dict(i) => repr_uses_maybe(i),
         ElmTypeRepr::Tuple(elems) => elems.iter().any(repr_uses_maybe),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use elm_codegen_http::{HttpMethod, ResponseInfo, ResponseKind};
+
+    fn endpoint(
+        elm_function_name: &'static str,
+        elm_module_path: &'static [&'static str],
+    ) -> ElmEndpointInfo {
+        ElmEndpointInfo {
+            handler_name: "handler",
+            elm_function_name,
+            elm_module_path,
+            method: HttpMethod::Get,
+            path_template: "/",
+            params: vec![],
+            response: ResponseInfo {
+                success: None,
+                success_kind: ResponseKind::Empty,
+                error: None,
+            },
+            tags: &[],
+        }
+    }
+
+    #[test]
+    fn group_endpoints_by_module_partitions_and_sorts_alphabetically() {
+        let endpoints = vec![
+            endpoint("updateDashboard", &["Api", "Generated", "Dashboard"]),
+            endpoint("listPeople", &["Api", "Generated", "People"]),
+            endpoint("createDashboard", &["Api", "Generated", "Dashboard"]),
+            endpoint("deleteDashboard", &["Api", "Generated", "Dashboard"]),
+            endpoint("createPerson", &["Api", "Generated", "People"]),
+        ];
+        let groups = group_endpoints_by_module(&endpoints);
+        let dashboard = groups
+            .get(&vec!["Api", "Generated", "Dashboard"])
+            .expect("dashboard group");
+        let people = groups
+            .get(&vec!["Api", "Generated", "People"])
+            .expect("people group");
+        assert_eq!(
+            dashboard
+                .iter()
+                .map(|e| e.elm_function_name)
+                .collect::<Vec<_>>(),
+            vec!["createDashboard", "deleteDashboard", "updateDashboard"],
+        );
+        assert_eq!(
+            people
+                .iter()
+                .map(|e| e.elm_function_name)
+                .collect::<Vec<_>>(),
+            vec!["createPerson", "listPeople"],
+        );
     }
 }

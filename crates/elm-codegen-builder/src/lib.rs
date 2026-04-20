@@ -23,7 +23,8 @@ pub use helpers::{
     record_access, record_multiline, tqualified, trecord,
 };
 pub use module_builder::{
-    build_merged_module, group_by_module, merge_request_into_module, MaybeEncoderRef,
+    build_merged_module, group_by_module, group_endpoints_by_module, merge_request_into_module,
+    MaybeEncoderRef,
 };
 pub use name_map::{NameEntry, NameMap};
 pub use overrides::TypeOverrides;
