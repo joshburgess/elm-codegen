@@ -4,6 +4,10 @@ Reference CLI for [`elm-codegen`](https://github.com/joshburgess/elm-codegen).
 Walks every type registered via `#[derive(ElmType)]`, groups by Elm
 module path, and writes one `.elm` file per module to a directory.
 
+This is a thin wrapper around `elm-codegen-builder` with the default
+configuration. Most real projects outgrow it quickly and ship their
+own codegen binary (see below).
+
 ## Install
 
 ```sh
@@ -15,32 +19,58 @@ This installs the `elm-codegen` binary.
 ## Usage
 
 ```sh
-elm-codegen --output ./src
-elm-codegen --output ./src --types Person Order   # filter to specific types
-elm-codegen --output ./src --dry-run              # print to stdout instead
+elm-codegen --output ./src                        # write every registered type to ./src
+elm-codegen --output ./src --types Person Order   # filter to specific type names
+elm-codegen --output ./src --dry-run              # print modules to stdout instead of writing
 ```
+
+Options:
+
+| Flag | Meaning |
+| --- | --- |
+| `-o, --output <DIR>` | Output directory for generated `.elm` files. Required. |
+| `-t, --types <NAMES>...` | Filter to specific Elm type names. Omit for all registered types. |
+| `--dry-run` | Print to stdout instead of writing files. |
+| `-h, --help` | Print help. |
+
+The CLI uses the default `BuildStrategy` (emit decoder + encoder for
+every type), the default `MaybeEncoderRef`
+(`Json.Encode.Extra.maybe`), an empty `TypeOverrides`, and no HTTP
+endpoint codegen.
 
 ## Linking your schema crate
 
-If your `#[derive(ElmType)]` types live in a separate crate that the
-CLI binary doesn't otherwise reference, rustc will dead-strip them and
-the registry will be empty. The reference CLI is intentionally
-project-agnostic and *doesn't* import any user crate.
+Because `#[derive(ElmType)]` registers types via `inventory`'s
+link-time collector, any crate that *only* contributes derived types
+must be referenced from the binary that runs codegen. The reference
+CLI is intentionally project-agnostic and *doesn't* import any user
+crate.
 
 If your schema lives in the same crate as your codegen entry point
 this isn't an issue, and you can use the published `elm-codegen`
-binary directly. Otherwise, the standard fix is to copy the body of
+binary directly. Otherwise, rustc will dead-strip the schema rlib and
+the registry will be empty.
+
+The standard fix is to fork: copy the body of
 `crates/elm-codegen-cli/src/main.rs` from this repo into your own
-binary and add a `use my_schema_crate as _;` at the top to force-link
-the schema rlib. The CLI's entry-point is small on purpose so it's
-easy to fork.
+binary and add a `use my_schema_crate as _;` at the top. The CLI's
+entry point is small on purpose so this is cheap.
 
 ## Customization
 
-For project-specific type overrides (e.g. `BigDecimal -> String`),
-custom `BuildStrategy` rules, or a different `encodeMaybe` location,
-write your own binary that calls the [`elm-codegen-builder`] crate
-directly. The reference CLI uses the defaults.
+The reference CLI has no flags for:
+
+- project-specific type overrides (e.g. `BigDecimal` -> `String`),
+- custom `BuildStrategy` rules (e.g. skip encoders for read-only
+  types tagged `"response"`),
+- custom `encodeMaybe` location,
+- emitting Elm request functions from `#[elm_endpoint(...)]`
+  handlers,
+- running a drift check against a committed tree.
+
+For any of those, write your own binary that calls
+[`elm-codegen-builder`] directly. See the workspace
+[README](../../README.md#2-run-codegen) for a minimal template.
 
 ## License
 

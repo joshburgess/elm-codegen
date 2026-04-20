@@ -9,17 +9,17 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/joshburgess/elm-codegen"
 authors = ["Josh Burgess"]
 
 [workspace.dependencies]
-elm-codegen-core = { path = "crates/elm-codegen-core", version = "0.1.0", default-features = false }
-elm-codegen-derive = { path = "crates/elm-codegen-derive", version = "0.1.0" }
-elm-codegen-builder = { path = "crates/elm-codegen-builder", version = "0.1.0" }
-elm-codegen-http = { path = "crates/elm-codegen-http", version = "0.1.0" }
+elm-codegen-core = { path = "crates/elm-codegen-core", version = "0.2.0", default-features = false }
+elm-codegen-derive = { path = "crates/elm-codegen-derive", version = "0.2.0" }
+elm-codegen-builder = { path = "crates/elm-codegen-builder", version = "0.2.0" }
+elm-codegen-http = { path = "crates/elm-codegen-http", version = "0.2.0" }
 
 elm-ast = "0.2.0"
 inventory = "0.3"
