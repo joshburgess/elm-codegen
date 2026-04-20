@@ -7,7 +7,7 @@ use elm_ast::file::ElmModule;
 use elm_ast::import::Import;
 use elm_ast::module_header::ModuleHeader;
 use elm_ast::node::Spanned;
-use elm_codegen_core::{ElmTypeInfo, ElmTypeKind, ElmTypeRepr, ElmVariantPayload};
+use elm_codegen_core::{ElmFieldInfo, ElmTypeInfo, ElmTypeKind, ElmTypeRepr, ElmVariantPayload};
 use elm_codegen_http::ElmEndpointInfo;
 
 use crate::request_style::RequestFunctionOutput;
@@ -88,9 +88,14 @@ pub fn build_merged_module<S: BuildStrategy>(
     let mut all_reprs: Vec<&ElmTypeRepr> = Vec::new();
     let mut needs_encoder = false;
     let mut needs_merge_tagged_helper = false;
+    let mut uses_required = false;
+    let mut uses_optional = false;
 
     for info in types {
         collect_all_reprs(info, &mut all_reprs);
+        if strategy.should_emit_decoder(info) {
+            collect_pipeline_flags(info, &mut uses_required, &mut uses_optional);
+        }
         if strategy.should_emit_encoder(info) && needs_merge_tagged_object_helper(info) {
             needs_merge_tagged_helper = true;
         }
@@ -141,7 +146,15 @@ pub fn build_merged_module<S: BuildStrategy>(
     });
 
     let owned_reprs: Vec<ElmTypeRepr> = all_reprs.into_iter().cloned().collect();
-    let imports = build_imports(&owned_reprs, needs_encoder, module_path, names, maybe);
+    let imports = build_imports(
+        &owned_reprs,
+        needs_encoder,
+        uses_required,
+        uses_optional,
+        module_path,
+        names,
+        maybe,
+    );
 
     ElmModule {
         header,
@@ -155,17 +168,31 @@ pub fn build_merged_module<S: BuildStrategy>(
 fn build_imports(
     reprs: &[ElmTypeRepr],
     needs_encoder: bool,
+    uses_required: bool,
+    uses_optional: bool,
     current_module: &[&str],
     names: &NameMap,
     maybe: &MaybeEncoderRef,
 ) -> Vec<Spanned<Import>> {
-    let mut imports = vec![
-        import_as_exposing(&["Json", "Decode"], "Decode", vec!["Decoder"]),
-        import_exposing(
-            &["Json", "Decode", "Pipeline"],
-            vec!["required", "optional"],
-        ),
-    ];
+    let mut imports = vec![import_as_exposing(
+        &["Json", "Decode"],
+        "Decode",
+        vec!["Decoder"],
+    )];
+
+    // Only import Json.Decode.Pipeline when we actually generate a
+    // pipeline-style decoder (records or enum struct variants), and
+    // only expose the helpers we actually reference.
+    if uses_required || uses_optional {
+        let mut exposed: Vec<&str> = Vec::new();
+        if uses_required {
+            exposed.push("required");
+        }
+        if uses_optional {
+            exposed.push("optional");
+        }
+        imports.push(import_exposing(&["Json", "Decode", "Pipeline"], exposed));
+    }
 
     if needs_encoder || reprs.iter().any(repr_uses_value) {
         imports.push(import_as_exposing(
@@ -407,6 +434,35 @@ fn repr_uses_maybe(r: &ElmTypeRepr) -> bool {
     }
 }
 
+/// Record `Json.Decode.Pipeline` helpers referenced by a type's
+/// decoder. `required` is emitted for every non-optional field;
+/// `optional` only when at least one field is `Option<_>`. Enum
+/// struct variants are included because their decoders also use
+/// the pipeline form. Bare-string enums, untagged enums, newtype
+/// kinds, and unit variants contribute nothing.
+fn collect_pipeline_flags(info: &ElmTypeInfo, uses_required: &mut bool, uses_optional: &mut bool) {
+    let note = |fields: &[ElmFieldInfo], uses_required: &mut bool, uses_optional: &mut bool| {
+        for field in fields {
+            if field.is_optional {
+                *uses_optional = true;
+            } else {
+                *uses_required = true;
+            }
+        }
+    };
+    match &info.kind {
+        ElmTypeKind::Record { fields } => note(fields, uses_required, uses_optional),
+        ElmTypeKind::Enum { variants, .. } => {
+            for variant in variants {
+                if let ElmVariantPayload::Struct(fields) = &variant.payload {
+                    note(fields, uses_required, uses_optional);
+                }
+            }
+        }
+        ElmTypeKind::Newtype { .. } => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,6 +487,141 @@ mod tests {
             tags: &[],
         }
     }
+
+    // ── Pipeline import shape ────────────────────────────────────
+    use crate::strategy::DefaultStrategy;
+    use elm_codegen_core::{
+        ElmFieldInfo, ElmTypeInfo, ElmTypeKind, ElmTypeRepr, ElmVariantInfo, ElmVariantPayload,
+        EnumRepresentation,
+    };
+
+    fn render_pipeline_line(info: ElmTypeInfo) -> Option<String> {
+        let types = vec![info];
+        let names = NameMap::from_types(&types);
+        let strategy = DefaultStrategy;
+        let maybe = MaybeEncoderRef::new(vec!["Api", "Encode"], "encodeMaybe");
+        let refs: Vec<&ElmTypeInfo> = types.iter().collect();
+        let module = build_merged_module(&["Api", "M"], &refs, &names, &strategy, &maybe);
+        elm_ast::pretty_print(&module)
+            .lines()
+            .find(|line| line.contains("Json.Decode.Pipeline"))
+            .map(|s| s.to_string())
+    }
+
+    fn record(fields: Vec<ElmFieldInfo>) -> ElmTypeInfo {
+        ElmTypeInfo {
+            rust_name: "R",
+            module_path: vec!["Api", "M"],
+            type_name: "R",
+            tags: vec![],
+            kind: ElmTypeKind::Record { fields },
+        }
+    }
+
+    fn field(name: &'static str, ty: ElmTypeRepr, is_optional: bool) -> ElmFieldInfo {
+        ElmFieldInfo {
+            rust_name: name,
+            elm_name: name,
+            elm_type: ty,
+            is_optional,
+            custom_decoder: None,
+            custom_encoder: None,
+        }
+    }
+
+    #[test]
+    fn pipeline_import_exposes_only_required_when_no_optional_fields() {
+        let info = record(vec![
+            field("id", ElmTypeRepr::String, false),
+            field("name", ElmTypeRepr::String, false),
+        ]);
+        let line = render_pipeline_line(info).expect("pipeline import present");
+        assert!(
+            line.contains("exposing (required)"),
+            "expected `exposing (required)` only, got: {line}"
+        );
+        assert!(!line.contains("optional"));
+    }
+
+    #[test]
+    fn pipeline_import_exposes_both_when_any_optional_field() {
+        let info = record(vec![
+            field("id", ElmTypeRepr::String, false),
+            field(
+                "nickname",
+                ElmTypeRepr::Maybe(Box::new(ElmTypeRepr::String)),
+                true,
+            ),
+        ]);
+        let line = render_pipeline_line(info).expect("pipeline import present");
+        assert!(line.contains("required"), "{line}");
+        assert!(line.contains("optional"), "{line}");
+    }
+
+    #[test]
+    fn pipeline_import_exposes_only_optional_when_all_fields_optional() {
+        let info = record(vec![field(
+            "nickname",
+            ElmTypeRepr::Maybe(Box::new(ElmTypeRepr::String)),
+            true,
+        )]);
+        let line = render_pipeline_line(info).expect("pipeline import present");
+        assert!(
+            line.contains("exposing (optional)"),
+            "expected `exposing (optional)` only, got: {line}"
+        );
+        assert!(!line.contains("required"));
+    }
+
+    #[test]
+    fn pipeline_import_omitted_for_bare_string_enum_only_module() {
+        let info = ElmTypeInfo {
+            rust_name: "Status",
+            module_path: vec!["Api", "M"],
+            type_name: "Status",
+            tags: vec![],
+            kind: ElmTypeKind::Enum {
+                representation: EnumRepresentation::BareString,
+                variants: vec![
+                    ElmVariantInfo {
+                        rust_name: "Active",
+                        elm_name: "Active",
+                        json_tag: "active",
+                        payload: ElmVariantPayload::Unit,
+                    },
+                    ElmVariantInfo {
+                        rust_name: "Archived",
+                        elm_name: "Archived",
+                        json_tag: "archived",
+                        payload: ElmVariantPayload::Unit,
+                    },
+                ],
+            },
+        };
+        assert!(
+            render_pipeline_line(info).is_none(),
+            "bare-string-only module should not import Json.Decode.Pipeline"
+        );
+    }
+
+    #[test]
+    fn pipeline_import_omitted_for_newtype_only_module() {
+        let info = ElmTypeInfo {
+            rust_name: "UserId",
+            module_path: vec!["Api", "M"],
+            type_name: "UserId",
+            tags: vec![],
+            kind: ElmTypeKind::Newtype {
+                inner: ElmTypeRepr::String,
+            },
+        };
+        assert!(
+            render_pipeline_line(info).is_none(),
+            "newtype-only module should not import Json.Decode.Pipeline"
+        );
+    }
+
+    // ── group_endpoints_by_module ─────────────────────────────────
 
     #[test]
     fn group_endpoints_by_module_partitions_and_sorts_alphabetically() {
