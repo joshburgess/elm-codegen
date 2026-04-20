@@ -127,7 +127,7 @@ applied at derive time before the builder ever sees the
 ### `MaybeEncoderRef`
 
 Elm's `Json.Encode` module doesn't ship a built-in helper for encoding
-a `Maybe a`. Most projects pull one in — usually
+a `Maybe a`. Most projects pull one in. The usual choice is
 [`Json.Encode.Extra.maybe`](https://package.elm-lang.org/packages/elm-community/json-extra/latest/Json-Encode-Extra#maybe)
 from `elm-community/json-extra`, but you may have your own helper in a
 project module instead. `MaybeEncoderRef` tells the builder which one
@@ -211,26 +211,26 @@ module actually needs it. No action is required from consumers.
 
 ### Types and codecs
 
-- [`build_merged_module`] — one Elm module per module-path group.
-- [`group_by_module`] — partition `ElmTypeInfo`s by their target
+- [`build_merged_module`]: one Elm module per module-path group.
+- [`group_by_module`]: partition `ElmTypeInfo`s by their target
   module.
-- [`build_type_declaration`] / [`build_decoder`] / [`build_encoder`]
-  — the per-type building blocks, if you want to compose modules
+- [`build_type_declaration`] / [`build_decoder`] / [`build_encoder`]:
+  the per-type building blocks, if you want to compose modules
   yourself.
-- [`BuildStrategy`] / [`DefaultStrategy`] — emission policy.
-- [`TypeOverrides`] — codebase-wide custom-type rewrites.
-- [`MaybeEncoderRef`] — where to find the project's `encodeMaybe`.
-- [`NameMap`] / [`NameEntry`] — Rust-name → Elm-name/module
+- [`BuildStrategy`] / [`DefaultStrategy`]: emission policy.
+- [`TypeOverrides`]: codebase-wide custom-type rewrites.
+- [`MaybeEncoderRef`]: where to find the project's `encodeMaybe`.
+- [`NameMap`] / [`NameEntry`]: Rust-name to Elm-name/module
   resolution.
 
 ### HTTP endpoints
 
-- [`normalize_endpoint`] — validated `ElmEndpointInfo` →
+- [`normalize_endpoint`]: validated `ElmEndpointInfo` to
   `EndpointSlots`.
-- [`EndpointSlots`] / [`PathSegment`] — the shape a `RequestStyle`
+- [`EndpointSlots`] / [`PathSegment`]: the shape a `RequestStyle`
   consumes.
-- [`RequestStyle`] / [`DefaultRequestStyle`] — render one endpoint.
-- [`merge_request_into_module`] — splice a request function into an
+- [`RequestStyle`] / [`DefaultRequestStyle`]: render one endpoint.
+- [`merge_request_into_module`]: splice a request function into an
   existing `ElmModule`, deduplicating imports.
 
 ### Helpers for ad-hoc AST construction
