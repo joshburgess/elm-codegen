@@ -1,0 +1,17 @@
+[package]
+name = "elm-client-gen-core"
+description = "Core types and trait for generating Elm code from Rust types."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+inventory.workspace = true
+elm-client-gen-derive = { workspace = true, optional = true }
+
+[features]
+default = ["derive"]
+derive = ["dep:elm-client-gen-derive"]

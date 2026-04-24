@@ -1,0 +1,15 @@
+[package]
+name = "elm-client-gen-derive-tests"
+description = "Trybuild harness for elm-client-gen-derive. Not published."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+elm-client-gen-core = { workspace = true, features = ["derive"] }
+trybuild.workspace = true

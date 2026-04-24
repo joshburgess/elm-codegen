@@ -77,4 +77,4 @@ jobs:
       - name: Build workspace (release)
         run: cargo build --workspace --all-features --release
       - name: Verify CLI binary
-        run: ./target/release/elm-codegen --help
+        run: ./target/release/elm-client-gen --help

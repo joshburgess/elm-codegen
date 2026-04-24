@@ -1,0 +1,26 @@
+---
+source: crates/elm-client-gen-builder/tests/snapshot.rs
+expression: rendered
+---
+module Snap.Newtype exposing
+    ( UserId
+    , encodeUserId
+    , userIdDecoder
+    )
+
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode exposing (Value)
+
+
+type alias UserId =
+    String
+
+
+userIdDecoder : Decode.Decoder UserId
+userIdDecoder =
+    Decode.string
+
+
+encodeUserId : UserId -> Value
+encodeUserId value =
+    Encode.string value

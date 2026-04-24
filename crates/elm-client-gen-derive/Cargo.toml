@@ -1,0 +1,18 @@
+[package]
+name = "elm-client-gen-derive"
+description = "#[derive(ElmType)] proc macro for elm-client-gen-core."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+

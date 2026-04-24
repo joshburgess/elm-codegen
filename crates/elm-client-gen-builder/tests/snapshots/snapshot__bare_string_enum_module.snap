@@ -1,0 +1,51 @@
+---
+source: crates/elm-client-gen-builder/tests/snapshot.rs
+expression: rendered
+---
+module Snap.Status exposing
+    ( Status(..)
+    , encodeStatus
+    , statusDecoder
+    )
+
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode exposing (Value)
+
+
+type Status
+    = Active
+    | Archived
+    | Banned
+
+
+statusDecoder : Decode.Decoder Status
+statusDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\s ->
+                case s of
+                    "active" ->
+                        Decode.succeed Active
+
+                    "archived" ->
+                        Decode.succeed Archived
+
+                    "banned" ->
+                        Decode.succeed Banned
+
+                    _ ->
+                        Decode.fail ("Unknown Status: " ++ s)
+            )
+
+
+encodeStatus : Status -> Value
+encodeStatus value =
+    case value of
+        Active ->
+            Encode.string "active"
+
+        Archived ->
+            Encode.string "archived"
+
+        Banned ->
+            Encode.string "banned"

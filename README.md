@@ -1,4 +1,4 @@
-# elm-codegen
+# elm-client-gen
 
 Generate Elm types, decoders, encoders, and (optionally) typed `Http`
 request functions from your Rust types and Axum handlers.
@@ -10,7 +10,7 @@ your own binary) at the resulting registry, and get well-formatted
 construction and layout-aware pretty-printing.
 
 ```rust
-use elm_codegen_core::ElmType;
+use elm_client_gen_core::ElmType;
 
 #[derive(ElmType)]
 #[elm(module = "Api.Person", name = "Person", tags = "entity")]
@@ -60,27 +60,27 @@ encodePerson value =
 
 | Crate | Purpose |
 | --- | --- |
-| [`elm-codegen-core`](crates/elm-codegen-core) | Core types (`ElmTypeInfo`, `ElmTypeRepr`, `ElmType` trait) and the `inventory`-backed registry. Re-exports `#[derive(ElmType)]` behind the default `derive` feature. |
-| [`elm-codegen-derive`](crates/elm-codegen-derive) | The `#[derive(ElmType)]` proc-macro plus the `#[elm_endpoint(...)]` attribute macro. Pulled in transitively via the `derive` feature on `elm-codegen-core` and `elm-codegen-http`. |
-| [`elm-codegen-http`](crates/elm-codegen-http) | HTTP endpoint metadata: the `#[elm_endpoint(...)]` registry plus the `ElmExtractor` / `ElmResponse` traits. Optional Axum integration behind the `axum` feature. |
-| [`elm-codegen-builder`](crates/elm-codegen-builder) | Turns `ElmTypeInfo` and `ElmEndpointInfo` into `elm-ast` modules. Configurable via `BuildStrategy`, `TypeOverrides`, `MaybeEncoderRef`, and a pluggable `RequestStyle`. |
-| [`elm-codegen-cli`](crates/elm-codegen-cli) | Reference binary. Walks the registry, applies overrides, writes one `.elm` file per Elm module path. |
+| [`elm-client-gen-core`](crates/elm-client-gen-core) | Core types (`ElmTypeInfo`, `ElmTypeRepr`, `ElmType` trait) and the `inventory`-backed registry. Re-exports `#[derive(ElmType)]` behind the default `derive` feature. |
+| [`elm-client-gen-derive`](crates/elm-client-gen-derive) | The `#[derive(ElmType)]` proc-macro plus the `#[elm_endpoint(...)]` attribute macro. Pulled in transitively via the `derive` feature on `elm-client-gen-core` and `elm-client-gen-http`. |
+| [`elm-client-gen-http`](crates/elm-client-gen-http) | HTTP endpoint metadata: the `#[elm_endpoint(...)]` registry plus the `ElmExtractor` / `ElmResponse` traits. Optional Axum integration behind the `axum` feature. |
+| [`elm-client-gen-builder`](crates/elm-client-gen-builder) | Turns `ElmTypeInfo` and `ElmEndpointInfo` into `elm-ast` modules. Configurable via `BuildStrategy`, `TypeOverrides`, `MaybeEncoderRef`, and a pluggable `RequestStyle`. |
+| [`elm-client-gen-cli`](crates/elm-client-gen-cli) | Reference binary. Walks the registry, applies overrides, writes one `.elm` file per Elm module path. |
 
 ## Quick start
 
 ### 1. Annotate your schema types
 
-In whichever crate defines your API DTOs, add `elm-codegen-core` and
+In whichever crate defines your API DTOs, add `elm-client-gen-core` and
 annotate the types you want exported:
 
 ```toml
 # my-schema/Cargo.toml
 [dependencies]
-elm-codegen-core = "0.2"
+elm-client-gen-core = "0.2"
 ```
 
 ```rust
-use elm_codegen_core::ElmType;
+use elm_client_gen_core::ElmType;
 
 #[derive(ElmType)]
 #[elm(module = "Api.Person", name = "Person")]
@@ -88,8 +88,8 @@ pub struct PersonApi { /* ... */ }
 ```
 
 The `derive` feature is on by default, so `#[derive(ElmType)]` is
-re-exported from `elm-codegen-core` directly (you don't need to depend
-on `elm-codegen-derive`).
+re-exported from `elm-client-gen-core` directly (you don't need to depend
+on `elm-client-gen-derive`).
 
 ### 2. Run codegen
 
@@ -103,8 +103,8 @@ Elm request functions for HTTP endpoints):
 ```toml
 # my-codegen/Cargo.toml
 [dependencies]
-elm-codegen-core = "0.2"
-elm-codegen-builder = "0.2"
+elm-client-gen-core = "0.2"
+elm-client-gen-builder = "0.2"
 my-schema = { path = "../my-schema" }
 ```
 
@@ -115,11 +115,11 @@ use std::path::PathBuf;
 
 use my_schema as _;   // force-link the schema crate (see "Linking note" below)
 
-use elm_codegen_builder::{
+use elm_client_gen_builder::{
     build_merged_module, group_by_module,
     DefaultStrategy, MaybeEncoderRef, NameMap, TypeOverrides,
 };
-use elm_codegen_core::registered_types;
+use elm_client_gen_core::registered_types;
 
 fn main() -> std::io::Result<()> {
     let out_dir = PathBuf::from("./elm/src");
@@ -167,8 +167,8 @@ fn main() -> std::io::Result<()> {
 ```
 
 **Option B: Use the reference CLI for the simplest cases.** Install
-with `cargo install elm-codegen-cli`, then run `elm-codegen --output
-./elm/src`. Note that the published `elm-codegen` binary doesn't
+with `cargo install elm-client-gen-cli`, then run `elm-client-gen --output
+./elm/src`. Note that the published `elm-client-gen` binary doesn't
 import any user crate, so it can only see types defined in crates it
 links to. In practice this means you'll still want a thin wrapper
 binary in your workspace (Option A) unless your schema lives in the
@@ -253,7 +253,7 @@ registration into one Elm request function per handler, plus the
 imports needed:
 
 ```rust
-#[elm_codegen_http::elm_endpoint(
+#[elm_client_gen_http::elm_endpoint(
     GET, "/api/v1/persons/{person_id}",
     module = "Api.Generated.Person",
     name   = "getPerson",
@@ -271,7 +271,7 @@ Extractors are inspected via `ElmExtractor` trait impls: `Path<T>` and
 / `String` / `Bytes` become typed request bodies, and `State<T>` (and
 anything else you tag with `ExtractorInfo::Skip`) is ignored.
 
-See `elm-codegen-http` for the full trait surface and bundled Axum
+See `elm-client-gen-http` for the full trait surface and bundled Axum
 impls.
 
 ## Customization
@@ -375,17 +375,17 @@ The workspace ships with layered test coverage:
   parser, the builder's name-map and type-override passes, the endpoint
   normalization pass, and the core data model.
 - **`trybuild` compile-fail / compile-pass cases**
-  (`crates/elm-codegen-derive-tests`) pin the errors the derive macro
+  (`crates/elm-client-gen-derive-tests`) pin the errors the derive macro
   emits for unsupported shapes (generics, multi-field tuple structs,
   unions, arity-4+ tuples, non-`String` map keys, externally-tagged
   enums, etc.) and verify that accepted shapes still compile.
 - **`insta` snapshot tests**
-  (`crates/elm-codegen-builder/tests/snapshot.rs`) pin the full
+  (`crates/elm-client-gen-builder/tests/snapshot.rs`) pin the full
   pretty-printed Elm output for representative record, newtype,
   bare-string enum, internally-tagged enum, untagged enum, tuple-field,
   and `mergeTaggedObject` module shapes. Formatting or pretty-printer
   regressions surface as reviewable diffs rather than passing silently.
-- **CLI smoke tests** (`crates/elm-codegen-cli/tests`) exercise both
+- **CLI smoke tests** (`crates/elm-client-gen-cli/tests`) exercise both
   the library entry point and the compiled binary: dry-run banner
   output, file-per-module write layout, name filtering, empty-registry
   errors, `--help` output, and exit codes.
@@ -397,10 +397,10 @@ The workspace ships with layered test coverage:
 
 Run the full suite with `cargo test --workspace`. To regenerate
 snapshots after an intentional formatting change, run
-`INSTA_UPDATE=always cargo test -p elm-codegen-builder --test snapshot`
+`INSTA_UPDATE=always cargo test -p elm-client-gen-builder --test snapshot`
 (or use `cargo insta review` for an interactive diff). Trybuild
 `.stderr` files are regenerated with `TRYBUILD=overwrite cargo test -p
-elm-codegen-derive-tests`.
+elm-client-gen-derive-tests`.
 
 ## License
 

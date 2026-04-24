@@ -1,26 +1,26 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/elm-codegen-core",
-    "crates/elm-codegen-derive",
-    "crates/elm-codegen-derive-tests",
-    "crates/elm-codegen-builder",
-    "crates/elm-codegen-http",
-    "crates/elm-codegen-cli",
+    "crates/elm-client-gen-core",
+    "crates/elm-client-gen-derive",
+    "crates/elm-client-gen-derive-tests",
+    "crates/elm-client-gen-builder",
+    "crates/elm-client-gen-http",
+    "crates/elm-client-gen-cli",
 ]
 
 [workspace.package]
 version = "0.2.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/joshburgess/elm-codegen"
+repository = "https://github.com/joshburgess/elm-client-gen"
 authors = ["Josh Burgess"]
 
 [workspace.dependencies]
-elm-codegen-core = { path = "crates/elm-codegen-core", version = "0.2.2", default-features = false }
-elm-codegen-derive = { path = "crates/elm-codegen-derive", version = "0.2.2" }
-elm-codegen-builder = { path = "crates/elm-codegen-builder", version = "0.2.2" }
-elm-codegen-http = { path = "crates/elm-codegen-http", version = "0.2.2" }
+elm-client-gen-core = { path = "crates/elm-client-gen-core", version = "0.2.2", default-features = false }
+elm-client-gen-derive = { path = "crates/elm-client-gen-derive", version = "0.2.2" }
+elm-client-gen-builder = { path = "crates/elm-client-gen-builder", version = "0.2.2" }
+elm-client-gen-http = { path = "crates/elm-client-gen-http", version = "0.2.2" }
 
 elm-ast = "0.2.0"
 inventory = "0.3"

@@ -1,0 +1,44 @@
+---
+source: crates/elm-client-gen-builder/tests/snapshot.rs
+expression: rendered
+---
+module Snap.Record exposing
+    ( Person
+    , encodePerson
+    , personDecoder
+    )
+
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (optional, required)
+import Json.Encode as Encode exposing (Value)
+import Json.Encode.Extra exposing (maybe)
+
+
+type alias Person =
+    { id : String
+    , fullName : String
+    , age : Int
+    , nickname : Maybe String
+    , tags : List String
+    }
+
+
+personDecoder : Decode.Decoder Person
+personDecoder =
+    Decode.succeed Person
+        |> required "id" Decode.string
+        |> required "fullName" Decode.string
+        |> required "age" Decode.int
+        |> optional "nickname" (Decode.nullable Decode.string) Nothing
+        |> required "tags" (Decode.list Decode.string)
+
+
+encodePerson : Person -> Value
+encodePerson value =
+    Encode.object
+        [ ( "id", Encode.string value.id )
+        , ( "fullName", Encode.string value.fullName )
+        , ( "age", Encode.int value.age )
+        , ( "nickname", maybe Encode.string value.nickname )
+        , ( "tags", Encode.list Encode.string value.tags )
+        ]

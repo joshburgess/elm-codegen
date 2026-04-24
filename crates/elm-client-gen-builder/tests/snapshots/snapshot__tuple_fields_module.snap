@@ -1,0 +1,51 @@
+---
+source: crates/elm-client-gen-builder/tests/snapshot.rs
+expression: rendered
+---
+module Snap.Geo exposing
+    ( Coordinates
+    , coordinatesDecoder
+    , encodeCoordinates
+    )
+
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (required)
+import Json.Encode as Encode exposing (Value)
+
+
+type alias Coordinates =
+    { latLon : ( Float, Float )
+    , bbox : ( Float, Float, Float )
+    }
+
+
+coordinatesDecoder : Decode.Decoder Coordinates
+coordinatesDecoder =
+    Decode.succeed Coordinates
+        |> required "latLon" (Decode.map2 (\a b -> ( a, b )) (Decode.index 0 Decode.float) (Decode.index 1 Decode.float))
+        |> required "bbox" (Decode.map3 (\a b c -> ( a, b, c )) (Decode.index 0 Decode.float) (Decode.index 1 Decode.float) (Decode.index 2 Decode.float))
+
+
+encodeCoordinates : Coordinates -> Value
+encodeCoordinates value =
+    Encode.object
+        [ ( "latLon"
+          , (\( a, b ) ->
+                Encode.list
+                    Basics.identity
+                    [ Encode.float a
+                    , Encode.float b
+                    ]
+            ) value.latLon
+          )
+        , ( "bbox"
+          , (\( a, b, c ) ->
+                Encode.list
+                    Basics.identity
+                    [ Encode.float a
+                    , Encode.float b
+                    , Encode.float c
+                    ]
+            ) value.bbox
+          )
+        ]

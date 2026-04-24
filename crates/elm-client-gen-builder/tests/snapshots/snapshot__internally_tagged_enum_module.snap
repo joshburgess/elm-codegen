@@ -1,0 +1,55 @@
+---
+source: crates/elm-client-gen-builder/tests/snapshot.rs
+expression: rendered
+---
+module Snap.Event exposing
+    ( Event(..)
+    , encodeEvent
+    , eventDecoder
+    )
+
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (optional, required)
+import Json.Encode as Encode exposing (Value)
+import Json.Encode.Extra exposing (maybe)
+
+
+type Event
+    = Ping
+    | Tick
+        { at : String
+        , jitterMs : Maybe Int
+        }
+
+
+eventDecoder : Decode.Decoder Event
+eventDecoder =
+    Decode.field "type" Decode.string
+        |> Decode.andThen
+            (\tag ->
+                case tag of
+                    "Ping" ->
+                        Decode.succeed Ping
+
+                    "Tick" ->
+                        Decode.succeed (\at jitterMs -> Tick { at = at, jitterMs = jitterMs })
+                            |> required "at" Decode.string
+                            |> optional "jitter_ms" (Decode.nullable Decode.int) Nothing
+
+                    _ ->
+                        Decode.fail ("Unknown Event: " ++ tag)
+            )
+
+
+encodeEvent : Event -> Value
+encodeEvent value =
+    case value of
+        Ping ->
+            Encode.object [ ( "type", Encode.string "Ping" ) ]
+
+        Tick payload ->
+            Encode.object
+                [ ( "type", Encode.string "Tick" )
+                , ( "at", Encode.string payload.at )
+                , ( "jitter_ms", maybe Encode.int payload.jitterMs )
+                ]
