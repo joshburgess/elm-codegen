@@ -767,10 +767,7 @@ fn parse_type_override(s: &str) -> (proc_macro2::TokenStream, bool) {
     if let Some((head, rest)) = trimmed.split_once(char::is_whitespace) {
         let rest = rest.trim();
         let head_is_ident = !head.is_empty()
-            && head
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_uppercase())
+            && head.chars().next().is_some_and(|c| c.is_ascii_uppercase())
             && head.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
         if head_is_ident && !rest.is_empty() {
             let (arg_tokens, _) = parse_type_override(rest);
