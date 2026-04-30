@@ -7,20 +7,21 @@ members = [
     "crates/elm-client-gen-builder",
     "crates/elm-client-gen-http",
     "crates/elm-client-gen-cli",
+    "xtask",
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/joshburgess/elm-client-gen"
 authors = ["Josh Burgess"]
 
 [workspace.dependencies]
-elm-client-gen-core = { path = "crates/elm-client-gen-core", version = "0.3.0", default-features = false }
-elm-client-gen-derive = { path = "crates/elm-client-gen-derive", version = "0.3.0" }
-elm-client-gen-builder = { path = "crates/elm-client-gen-builder", version = "0.3.0" }
-elm-client-gen-http = { path = "crates/elm-client-gen-http", version = "0.3.0" }
+elm-client-gen-core = { path = "crates/elm-client-gen-core", version = "0.4.0", default-features = false }
+elm-client-gen-derive = { path = "crates/elm-client-gen-derive", version = "0.4.0" }
+elm-client-gen-builder = { path = "crates/elm-client-gen-builder", version = "0.4.0" }
+elm-client-gen-http = { path = "crates/elm-client-gen-http", version = "0.4.0" }
 
 elm-ast = "0.2.0"
 inventory = "0.3"
