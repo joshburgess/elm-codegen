@@ -12,18 +12,30 @@ authors.workspace = true
 elm-client-gen-core.workspace = true
 elm-client-gen-derive = { workspace = true, optional = true }
 inventory.workspace = true
-axum = { version = "0.6", optional = true }
-axum-extra = { version = "0.7", optional = true, features = ["query"] }
 uuid = { version = "1", optional = true }
+
+axum_06 = { package = "axum", version = "0.6", optional = true }
+axum_07 = { package = "axum", version = "0.7", optional = true }
+axum_08 = { package = "axum", version = "0.8", optional = true }
+axum_extra_07 = { package = "axum-extra", version = "0.7", features = ["query"], optional = true }
+axum_extra_09 = { package = "axum-extra", version = "0.9", features = ["query"], optional = true }
+axum_extra_010 = { package = "axum-extra", version = "0.10", features = ["query"], optional = true }
 
 [features]
 default = ["derive"]
 derive = ["dep:elm-client-gen-derive"]
-axum = ["dep:axum"]
-axum-extra = ["dep:axum-extra", "axum"]
 uuid = ["dep:uuid"]
+
+# Pick exactly one axum-X-Y feature. Enabling more than one is a compile error.
+axum-0-6 = ["dep:axum_06"]
+axum-0-7 = ["dep:axum_07"]
+axum-0-8 = ["dep:axum_08"]
+
+# Each axum-extra-X-Y implies its matching axum-X-Y.
+axum-extra-0-7 = ["dep:axum_extra_07", "axum-0-6"]
+axum-extra-0-9 = ["dep:axum_extra_09", "axum-0-7"]
+axum-extra-0-10 = ["dep:axum_extra_010", "axum-0-8"]
 
 [dev-dependencies]
 elm-client-gen-core = { workspace = true, features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-axum = "0.6"

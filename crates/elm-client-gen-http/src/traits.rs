@@ -3,17 +3,32 @@
 
 use elm_client_gen_core::{ElmType, ElmTypeRepr};
 
-#[cfg(feature = "axum")]
+#[cfg(any(feature = "axum-0-6", feature = "axum-0-7", feature = "axum-0-8"))]
 use crate::{BodyKind, ResponseKind};
 use crate::{ExtractorInfo, PathParam, QueryParam, ResponseInfo};
+
+// ---------------------------------------------------------------------------
+// axum version selector mutual exclusion
+// ---------------------------------------------------------------------------
+//
+// Enable exactly one of `axum-0-6`, `axum-0-7`, `axum-0-8`. The trait impls
+// are emitted per-version and would compile across multiple versions, but
+// pulling in two copies of axum at once is almost never what callers want.
+
+#[cfg(any(
+    all(feature = "axum-0-6", feature = "axum-0-7"),
+    all(feature = "axum-0-6", feature = "axum-0-8"),
+    all(feature = "axum-0-7", feature = "axum-0-8"),
+))]
+compile_error!("elm-client-gen-http: enable exactly one of `axum-0-6`, `axum-0-7`, `axum-0-8`.");
 
 /// Implemented by every type used as a parameter on an annotated
 /// handler. Covers `Path<T>`, `Query<T>`, `Json<T>`, custom
 /// extractors, and types that should be skipped (`State<T>`,
 /// session extractors, etc.).
 ///
-/// The bundled `axum` feature provides impls for the standard Axum
-/// extractors. Users impl this for their own extractor wrappers.
+/// The bundled `axum-0-X` features provide impls for the standard
+/// Axum extractors. Users impl this for their own extractor wrappers.
 pub trait ElmExtractor {
     fn elm_extractor_info() -> ExtractorInfo;
 }
@@ -150,46 +165,19 @@ impl ElmScalar for uuid::Uuid {
 }
 
 // ---------------------------------------------------------------------------
-// Axum impls (behind the `axum` feature)
+// Axum-version-agnostic impls
 // ---------------------------------------------------------------------------
+//
+// `String` and `()` aren't axum types, but the original module gated them
+// behind the axum feature because they only make sense as part of an axum
+// handler signature. We keep that gate (via "any axum version") so the
+// surface stays identical for callers that opt in.
 
-#[cfg(feature = "axum")]
-mod axum_impls {
-    use super::*;
-
-    /// Application state never appears in the Elm signature.
-    impl<T> ElmExtractor for axum::extract::State<T> {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::Skip
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Request body extractors
-    // -----------------------------------------------------------------
-
-    /// `Json<T>` becomes a JSON request body. `T` must derive
-    /// `ElmType`. The body type is composed via `elm_type_repr()` so
-    /// wrappers like `Vec<T>` render as `List T` at the call site.
-    impl<T: ElmType> ElmExtractor for axum::Json<T> {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::Body {
-                kind: BodyKind::Json,
-                ty: T::elm_type_repr(),
-            }
-        }
-    }
-
-    /// `Form<T>` becomes a form-encoded body. `T` must derive
-    /// `ElmType`; downstream RequestStyle decides how to encode it.
-    impl<T: ElmType> ElmExtractor for axum::extract::Form<T> {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::Body {
-                kind: BodyKind::Form,
-                ty: T::elm_type_repr(),
-            }
-        }
-    }
+#[cfg(any(feature = "axum-0-6", feature = "axum-0-7", feature = "axum-0-8"))]
+mod axum_common_impls {
+    use super::{
+        BodyKind, ElmExtractor, ElmResponse, ElmTypeRepr, ExtractorInfo, ResponseInfo, ResponseKind,
+    };
 
     /// Bare `String` extractor: plain-text request body. The Elm
     /// `body` field is just `String`.
@@ -202,165 +190,255 @@ mod axum_impls {
         }
     }
 
-    /// `Bytes` extractor: raw binary request body. The Elm `body`
-    /// field is `Bytes.Bytes` (from `elm/bytes`).
-    impl ElmExtractor for axum::body::Bytes {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::Body {
-                kind: BodyKind::Bytes,
-                // Surface a marker custom name so downstream codegen
-                // can recognize "this is bytes" without conflating it
-                // with String. Builders match on `BodyKind::Bytes`
-                // directly; this name is informational.
-                ty: ElmTypeRepr::Custom("Bytes.Bytes".to_string()),
-            }
-        }
-    }
-
-    /// `Query<T>` expands to one `QueryParam` per field of `T`.
-    impl<T: ElmQueryStruct> ElmExtractor for axum::extract::Query<T> {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::QueryParams(T::query_params())
-        }
-    }
-
-    /// `axum_extra::extract::Query<T>` is the same shape as
-    /// `axum::extract::Query<T>` but supports repeated keys for
-    /// `Vec<_>` fields. From the Elm side, the param list is
-    /// identical so we forward to the same extractor info.
-    #[cfg(feature = "axum-extra")]
-    impl<T: ElmQueryStruct> ElmExtractor for axum_extra::extract::Query<T> {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::QueryParams(T::query_params())
-        }
-    }
-
-    /// `Path<T>` expands to one or more `PathParam`s.
-    impl<T: ElmPathParams> ElmExtractor for axum::extract::Path<T> {
-        fn elm_extractor_info() -> ExtractorInfo {
-            ExtractorInfo::PathParams(T::path_params())
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Response types
-    //
-    // The matrix here covers axum's standard return shapes. For each
-    // payload kind (Json<T> / String / () / Bytes / Html<T>) we cover
-    // the cross product of:
-    //
-    //   - bare T
-    //   - (StatusCode, T)
-    //   - Result<T, E>
-    //   - Result<(StatusCode, T), E>
-    //
-    // Users with richer error decoding override `ElmResponse` for
-    // their own return type (e.g. `ApiResult<T>`).
-    // -----------------------------------------------------------------
-
-    fn json_response<T: ElmType>() -> ResponseInfo {
-        if T::IS_UNIT {
-            return empty_response();
-        }
-        ResponseInfo {
-            success: Some(T::elm_type_repr()),
-            success_kind: ResponseKind::Json,
-            error: None,
-        }
-    }
-
-    fn text_response() -> ResponseInfo {
-        ResponseInfo {
-            success: Some(ElmTypeRepr::String),
-            success_kind: ResponseKind::Text,
-            error: None,
-        }
-    }
-
-    fn empty_response() -> ResponseInfo {
-        ResponseInfo {
-            success: None,
-            success_kind: ResponseKind::Empty,
-            error: None,
-        }
-    }
-
-    fn bytes_response() -> ResponseInfo {
-        ResponseInfo {
-            success: Some(ElmTypeRepr::Custom("Bytes.Bytes".to_string())),
-            success_kind: ResponseKind::Bytes,
-            error: None,
-        }
-    }
-
-    // --- Per-payload-kind impls ---
-    //
-    // Each "leaf" body type (Json<T>, String, Html<T>, Bytes, (), and
-    // bare StatusCode) gets a single direct impl. The wrapper shapes
-    // — `(StatusCode, T)`, `Result<T, E>`, and the cross of the two —
-    // are picked up by the blanket impls below, so a downstream crate
-    // that has its own response type only needs to add one impl on the
-    // leaf type to get all four shapes for free.
-
-    /// `Json<T>` covers any `T: ElmType`. The unit case (`Json<()>`)
-    /// is handled via `T::IS_UNIT` inside `json_response`, which
-    /// short-circuits to an empty body without needing a separate
-    /// (and orphan-rule-troublesome) concrete impl.
-    impl<T: ElmType> ElmResponse for axum::Json<T> {
-        fn elm_response_info() -> ResponseInfo {
-            json_response::<T>()
-        }
-    }
-
     impl ElmResponse for String {
         fn elm_response_info() -> ResponseInfo {
-            text_response()
-        }
-    }
-
-    impl<T> ElmResponse for axum::response::Html<T> {
-        fn elm_response_info() -> ResponseInfo {
-            text_response()
+            ResponseInfo {
+                success: Some(ElmTypeRepr::String),
+                success_kind: ResponseKind::Text,
+                error: None,
+            }
         }
     }
 
     impl ElmResponse for () {
         fn elm_response_info() -> ResponseInfo {
-            empty_response()
-        }
-    }
-    impl ElmResponse for axum::http::StatusCode {
-        fn elm_response_info() -> ResponseInfo {
-            empty_response()
-        }
-    }
-
-    impl ElmResponse for axum::body::Bytes {
-        fn elm_response_info() -> ResponseInfo {
-            bytes_response()
+            ResponseInfo {
+                success: None,
+                success_kind: ResponseKind::Empty,
+                error: None,
+            }
         }
     }
 
-    // --- Wrapper blanket impls ---
-    //
-    // Adding `(StatusCode, _)` and `Result<_, _>` blanket impls lets
-    // any user-defined leaf `ElmResponse` automatically work in the
-    // standard Axum return shapes. The two together also cover
-    // `Result<(StatusCode, T), E>` because `(StatusCode, T)` is itself
-    // an `ElmResponse`.
-
-    impl<T: ElmResponse> ElmResponse for (axum::http::StatusCode, T) {
-        fn elm_response_info() -> ResponseInfo {
-            T::elm_response_info()
-        }
-    }
-
+    /// Blanket: any `Result<T, E>` whose `T` is itself an `ElmResponse`
+    /// reports the same shape — error bodies are user-defined and decoded
+    /// out-of-band.
     impl<T: ElmResponse, E> ElmResponse for Result<T, E> {
         fn elm_response_info() -> ResponseInfo {
             T::elm_response_info()
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Axum-version-specific impls
+// ---------------------------------------------------------------------------
+//
+// Each block below targets one axum minor version. `$axum` is the renamed
+// crate (`axum_06`, `axum_07`, `axum_08`); the module name keeps the version
+// in scope at the symbol level too, so error messages point at the right
+// version.
+
+#[allow(unused_macros)]
+macro_rules! impl_axum_extractors_and_responses {
+    ($mod_name:ident, $axum:ident) => {
+        mod $mod_name {
+            use super::{
+                BodyKind, ElmExtractor, ElmPathParams, ElmQueryStruct, ElmResponse, ElmType,
+                ElmTypeRepr, ExtractorInfo, ResponseInfo, ResponseKind,
+            };
+
+            // -----------------------------------------------------------------
+            // Request extractors
+            // -----------------------------------------------------------------
+
+            /// Application state never appears in the Elm signature.
+            impl<T> ElmExtractor for $axum::extract::State<T> {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::Skip
+                }
+            }
+
+            /// `Json<T>` becomes a JSON request body. `T` must derive
+            /// `ElmType`. The body type is composed via `elm_type_repr()`
+            /// so wrappers like `Vec<T>` render as `List T` at the call
+            /// site.
+            impl<T: ElmType> ElmExtractor for $axum::Json<T> {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::Body {
+                        kind: BodyKind::Json,
+                        ty: T::elm_type_repr(),
+                    }
+                }
+            }
+
+            /// `Form<T>` becomes a form-encoded body. `T` must derive
+            /// `ElmType`; downstream RequestStyle decides how to encode it.
+            impl<T: ElmType> ElmExtractor for $axum::extract::Form<T> {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::Body {
+                        kind: BodyKind::Form,
+                        ty: T::elm_type_repr(),
+                    }
+                }
+            }
+
+            /// `Bytes` extractor: raw binary request body. The Elm `body`
+            /// field is `Bytes.Bytes` (from `elm/bytes`).
+            impl ElmExtractor for $axum::body::Bytes {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::Body {
+                        kind: BodyKind::Bytes,
+                        // Surface a marker custom name so downstream codegen
+                        // can recognize "this is bytes" without conflating it
+                        // with String. Builders match on `BodyKind::Bytes`
+                        // directly; this name is informational.
+                        ty: ElmTypeRepr::Custom("Bytes.Bytes".to_string()),
+                    }
+                }
+            }
+
+            /// `Query<T>` expands to one `QueryParam` per field of `T`.
+            impl<T: ElmQueryStruct> ElmExtractor for $axum::extract::Query<T> {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::QueryParams(T::query_params())
+                }
+            }
+
+            /// `Path<T>` expands to one or more `PathParam`s.
+            impl<T: ElmPathParams> ElmExtractor for $axum::extract::Path<T> {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::PathParams(T::path_params())
+                }
+            }
+
+            // -----------------------------------------------------------------
+            // Response types
+            //
+            // The matrix here covers axum's standard return shapes. For each
+            // payload kind (Json<T> / Html<T> / Bytes / StatusCode) we cover
+            // the cross product of:
+            //
+            //   - bare T
+            //   - (StatusCode, T)
+            //   - Result<T, E>
+            //   - Result<(StatusCode, T), E>
+            //
+            // (The `Result<_, E>` blanket lives in `axum_common_impls`; the
+            // `(StatusCode, _)` blanket lives here because StatusCode is an
+            // axum re-export.)
+            // -----------------------------------------------------------------
+
+            fn json_response<T: ElmType>() -> ResponseInfo {
+                if T::IS_UNIT {
+                    return ResponseInfo {
+                        success: None,
+                        success_kind: ResponseKind::Empty,
+                        error: None,
+                    };
+                }
+                ResponseInfo {
+                    success: Some(T::elm_type_repr()),
+                    success_kind: ResponseKind::Json,
+                    error: None,
+                }
+            }
+
+            fn text_response() -> ResponseInfo {
+                ResponseInfo {
+                    success: Some(ElmTypeRepr::String),
+                    success_kind: ResponseKind::Text,
+                    error: None,
+                }
+            }
+
+            fn empty_response() -> ResponseInfo {
+                ResponseInfo {
+                    success: None,
+                    success_kind: ResponseKind::Empty,
+                    error: None,
+                }
+            }
+
+            fn bytes_response() -> ResponseInfo {
+                ResponseInfo {
+                    success: Some(ElmTypeRepr::Custom("Bytes.Bytes".to_string())),
+                    success_kind: ResponseKind::Bytes,
+                    error: None,
+                }
+            }
+
+            /// `Json<T>` covers any `T: ElmType`. The unit case (`Json<()>`)
+            /// is handled via `T::IS_UNIT` inside `json_response`, which
+            /// short-circuits to an empty body without needing a separate
+            /// (and orphan-rule-troublesome) concrete impl.
+            impl<T: ElmType> ElmResponse for $axum::Json<T> {
+                fn elm_response_info() -> ResponseInfo {
+                    json_response::<T>()
+                }
+            }
+
+            impl<T> ElmResponse for $axum::response::Html<T> {
+                fn elm_response_info() -> ResponseInfo {
+                    text_response()
+                }
+            }
+
+            impl ElmResponse for $axum::http::StatusCode {
+                fn elm_response_info() -> ResponseInfo {
+                    empty_response()
+                }
+            }
+
+            impl ElmResponse for $axum::body::Bytes {
+                fn elm_response_info() -> ResponseInfo {
+                    bytes_response()
+                }
+            }
+
+            /// `(StatusCode, T)` adopts `T`'s response shape. Combined with
+            /// the `Result<T, E>` blanket in `axum_common_impls`, this covers
+            /// `Result<(StatusCode, T), E>` for free.
+            impl<T: ElmResponse> ElmResponse for ($axum::http::StatusCode, T) {
+                fn elm_response_info() -> ResponseInfo {
+                    T::elm_response_info()
+                }
+            }
+        }
+    };
+}
+
+#[cfg(feature = "axum-0-6")]
+impl_axum_extractors_and_responses!(axum_06_impls, axum_06);
+#[cfg(feature = "axum-0-7")]
+impl_axum_extractors_and_responses!(axum_07_impls, axum_07);
+#[cfg(feature = "axum-0-8")]
+impl_axum_extractors_and_responses!(axum_08_impls, axum_08);
+
+// ---------------------------------------------------------------------------
+// axum-extra: Query<T> with repeated keys
+// ---------------------------------------------------------------------------
+//
+// `axum_extra::extract::Query<T>` has the same shape as
+// `axum::extract::Query<T>` but supports repeated keys for `Vec<_>` fields.
+// From the Elm side the param list is identical so we forward to the same
+// extractor info.
+
+#[allow(unused_macros)]
+macro_rules! impl_axum_extra_query {
+    ($mod_name:ident, $axum_extra:ident) => {
+        mod $mod_name {
+            use super::{ElmExtractor, ElmQueryStruct, ExtractorInfo};
+
+            impl<T: ElmQueryStruct> ElmExtractor for $axum_extra::extract::Query<T> {
+                fn elm_extractor_info() -> ExtractorInfo {
+                    ExtractorInfo::QueryParams(T::query_params())
+                }
+            }
+        }
+    };
+}
+
+#[cfg(feature = "axum-extra-0-7")]
+impl_axum_extra_query!(axum_extra_07_impls, axum_extra_07);
+#[cfg(feature = "axum-extra-0-9")]
+impl_axum_extra_query!(axum_extra_09_impls, axum_extra_09);
+#[cfg(feature = "axum-extra-0-10")]
+impl_axum_extra_query!(axum_extra_010_impls, axum_extra_010);
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -422,10 +500,24 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature = "axum"))]
+// Per-axum-version smoke tests. These are compiled against whichever single
+// axum version is currently selected. Run with e.g.
+// `cargo test --no-default-features --features "derive,axum-0-7"`.
+
+#[cfg(all(
+    test,
+    any(feature = "axum-0-6", feature = "axum-0-7", feature = "axum-0-8")
+))]
 mod axum_tests {
     use super::*;
     use elm_client_gen_core::ElmType;
+
+    #[cfg(feature = "axum-0-6")]
+    use axum_06 as axum;
+    #[cfg(feature = "axum-0-7")]
+    use axum_07 as axum;
+    #[cfg(feature = "axum-0-8")]
+    use axum_08 as axum;
 
     #[derive(ElmType)]
     #[elm(module = "Api.Person", name = "Person")]

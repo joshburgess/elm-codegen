@@ -3,7 +3,17 @@
 //! endpoint shows up in the inventory registry with the expected
 //! shape.
 
-#![cfg(all(feature = "derive", feature = "axum"))]
+#![cfg(all(
+    feature = "derive",
+    any(feature = "axum-0-6", feature = "axum-0-7", feature = "axum-0-8"),
+))]
+
+#[cfg(feature = "axum-0-6")]
+use axum_06 as axum;
+#[cfg(feature = "axum-0-7")]
+use axum_07 as axum;
+#[cfg(feature = "axum-0-8")]
+use axum_08 as axum;
 
 use axum::extract::{Path, Query, State};
 use axum::Json;
