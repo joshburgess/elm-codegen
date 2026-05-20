@@ -23,10 +23,7 @@ fn render_with_names(types: Vec<ElmTypeInfo>, names: NameMap) -> TestResult<Stri
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
     let groups = group_by_module(&types);
-    let (module_path, group) = groups
-        .into_iter()
-        .next()
-        .or_fail_with("one module group")?;
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     Ok(elm_ast::pretty_print(&module))
 }

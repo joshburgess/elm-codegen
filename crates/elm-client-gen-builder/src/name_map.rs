@@ -195,8 +195,12 @@ mod tests {
             .exposed_overrides
             .as_deref()
             .or_fail_with("exposed_overrides should be set")?;
-        check!(module_path_strs(exposed).as_slice())
-            .satisfies(eq(["Patch", "patch", "patchPair"].as_slice()))?;
+        check!(module_path_strs(exposed).as_slice()).satisfies(eq([
+            "Patch",
+            "patch",
+            "patchPair",
+        ]
+        .as_slice()))?;
         Ok(())
     }
 
@@ -239,8 +243,7 @@ mod tests {
         );
         map.register("Patch", "Patch", vec!["Other".into()]);
         let e = map.lookup("Patch").or_fail_with("Patch entry")?;
-        check!(module_path_strs(&e.module_path).as_slice())
-            .satisfies(eq(["Other"].as_slice()))?;
+        check!(module_path_strs(&e.module_path).as_slice()).satisfies(eq(["Other"].as_slice()))?;
         check!(e.exposed_overrides.is_none())
             .satisfies(is_true())
             .context("plain register() should clear any prior exposed_overrides")?;

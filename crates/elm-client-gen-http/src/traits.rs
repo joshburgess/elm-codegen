@@ -513,8 +513,8 @@ mod tests {
 mod axum_tests {
     use super::*;
     use elm_client_gen_core::ElmType;
-    use test_better::ErrorKind;
     use test_better::prelude::*;
+    use test_better::ErrorKind;
 
     #[cfg(feature = "axum-0-6")]
     use axum_06 as axum;
@@ -589,8 +589,10 @@ mod axum_tests {
                 check!(first.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
                 check!(second.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
             }
-            other => return Err(TestError::new(ErrorKind::Assertion)
-                .with_message(format!("expected PathParams, got {:?}", other))),
+            other => {
+                return Err(TestError::new(ErrorKind::Assertion)
+                    .with_message(format!("expected PathParams, got {:?}", other)))
+            }
         }
         Ok(())
     }

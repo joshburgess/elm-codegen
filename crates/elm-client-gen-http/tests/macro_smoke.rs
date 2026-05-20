@@ -21,8 +21,8 @@ use elm_client_gen_core::ElmType;
 use elm_client_gen_http::{
     elm_endpoint, registered_endpoints, BodyKind, ElmTypeRepr, ExtractorInfo, HttpMethod,
 };
-use test_better::ErrorKind;
 use test_better::prelude::*;
+use test_better::ErrorKind;
 
 fn fail(msg: impl Into<String>) -> TestError {
     TestError::new(ErrorKind::Assertion).with_message(msg.into())
@@ -120,9 +120,19 @@ fn get_person_is_registered_with_expected_metadata() -> TestResult {
     match p1 {
         ExtractorInfo::PathParams(p) => {
             check!(p.len()).satisfies(eq(1))?;
-            check!(p.first().ok_or_else(|| fail("first path param"))?.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
+            check!(p
+                .first()
+                .ok_or_else(|| fail("first path param"))?
+                .ty
+                .clone())
+            .satisfies(eq(ElmTypeRepr::String))?;
         }
-        other => return Err(fail(format!("expected PathParams at index 1, got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected PathParams at index 1, got {:?}",
+                other
+            )))
+        }
     }
     match p2 {
         ExtractorInfo::QueryParams(q) => {
@@ -130,12 +140,22 @@ fn get_person_is_registered_with_expected_metadata() -> TestResult {
             check!(names.clone()).satisfies(contains(eq("name")))?;
             check!(names).satisfies(contains(eq("active")))?;
         }
-        other => return Err(fail(format!("expected QueryParams at index 2, got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected QueryParams at index 2, got {:?}",
+                other
+            )))
+        }
     }
 
     match &endpoint.response.success {
         Some(ElmTypeRepr::Custom(name)) => check!(name.as_str()).satisfies(eq("Person"))?,
-        other => return Err(fail(format!("expected Some(Custom(\"Person\")), got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected Some(Custom(\"Person\")), got {:?}",
+                other
+            )))
+        }
     }
     Ok(())
 }
@@ -160,9 +180,19 @@ fn patch_person_registers_with_patch_method_and_body() -> TestResult {
     match p1 {
         ExtractorInfo::PathParams(p) => {
             check!(p.len()).satisfies(eq(1))?;
-            check!(p.first().ok_or_else(|| fail("first path param"))?.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
+            check!(p
+                .first()
+                .ok_or_else(|| fail("first path param"))?
+                .ty
+                .clone())
+            .satisfies(eq(ElmTypeRepr::String))?;
         }
-        other => return Err(fail(format!("expected PathParams at index 1, got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected PathParams at index 1, got {:?}",
+                other
+            )))
+        }
     }
     match p2 {
         ExtractorInfo::Body {
@@ -171,12 +201,22 @@ fn patch_person_registers_with_patch_method_and_body() -> TestResult {
         } => {
             check!(name.as_str()).satisfies(eq("CreatePerson"))?;
         }
-        other => return Err(fail(format!("expected Body {{ Json, .. }}, got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected Body {{ Json, .. }}, got {:?}",
+                other
+            )))
+        }
     }
 
     match &endpoint.response.success {
         Some(ElmTypeRepr::Custom(name)) => check!(name.as_str()).satisfies(eq("Person"))?,
-        other => return Err(fail(format!("expected Some(Custom(\"Person\")), got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected Some(Custom(\"Person\")), got {:?}",
+                other
+            )))
+        }
     }
     Ok(())
 }
@@ -201,7 +241,12 @@ fn create_person_uses_default_name_and_no_tags() -> TestResult {
         } => {
             check!(name.as_str()).satisfies(eq("CreatePerson"))?;
         }
-        other => return Err(fail(format!("expected Body {{ Json, .. }}, got {:?}", other))),
+        other => {
+            return Err(fail(format!(
+                "expected Body {{ Json, .. }}, got {:?}",
+                other
+            )))
+        }
     }
     Ok(())
 }

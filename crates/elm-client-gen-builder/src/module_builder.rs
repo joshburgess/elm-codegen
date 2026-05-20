@@ -710,17 +710,27 @@ mod tests {
             .find(|l| l.contains("import Api.Patch"))
             .or_fail_with(format!("expected `import Api.Patch ...`:\n{rendered}"))?
             .to_string();
-        check!(import.contains("Patch")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("patch")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("patchPair")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("Patch"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("patch"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("patchPair"))
+            .satisfies(is_true())
+            .context(import.clone())?;
         // Auto-derived names that the override list doesn't include
         // must NOT leak through.
         check!(import.contains("patchDecoder"))
             .satisfies(is_false())
-            .context(format!("auto-derived patchDecoder should not appear when overrides are set:\n{import}"))?;
+            .context(format!(
+                "auto-derived patchDecoder should not appear when overrides are set:\n{import}"
+            ))?;
         check!(import.contains("encodePatch"))
             .satisfies(is_false())
-            .context(format!("auto-derived encodePatch should not appear when overrides are set:\n{import}"))?;
+            .context(format!(
+                "auto-derived encodePatch should not appear when overrides are set:\n{import}"
+            ))?;
         Ok(())
     }
 
@@ -739,9 +749,15 @@ mod tests {
             .find(|l| l.contains("import Api.Wrap"))
             .or_fail_with(format!("expected `import Api.Wrap ...`:\n{rendered}"))?
             .to_string();
-        check!(import.contains("Wrap")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("wrapDecoder")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("encodeWrap")).satisfies(is_true()).context(import)?;
+        check!(import.contains("Wrap"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("wrapDecoder"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("encodeWrap"))
+            .satisfies(is_true())
+            .context(import)?;
         Ok(())
     }
 
@@ -812,18 +828,26 @@ mod tests {
         let rendered = render_with(types, names);
         let count = rendered.matches("import Api.Patch ").count()
             + rendered.matches("import Api.Patch\n").count();
-        check!(count)
-            .satisfies(eq(1))
-            .context(format!("expected exactly one `import Api.Patch ...`:\n{rendered}"))?;
+        check!(count).satisfies(eq(1)).context(format!(
+            "expected exactly one `import Api.Patch ...`:\n{rendered}"
+        ))?;
         let import = rendered
             .lines()
             .find(|l| l.contains("import Api.Patch"))
             .or_fail_with("import line")?
             .to_string();
-        check!(import.contains("Patch")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("patch")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("PatchNullable")).satisfies(is_true()).context(import.clone())?;
-        check!(import.contains("patchNullable")).satisfies(is_true()).context(import)?;
+        check!(import.contains("Patch"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("patch"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("PatchNullable"))
+            .satisfies(is_true())
+            .context(import.clone())?;
+        check!(import.contains("patchNullable"))
+            .satisfies(is_true())
+            .context(import)?;
         Ok(())
     }
 
@@ -847,16 +871,16 @@ mod tests {
             .iter()
             .map(|e| e.elm_function_name)
             .collect::<Vec<_>>())
-            .satisfies(eq(vec![
-                "createDashboard",
-                "deleteDashboard",
-                "updateDashboard",
-            ]))?;
+        .satisfies(eq(vec![
+            "createDashboard",
+            "deleteDashboard",
+            "updateDashboard",
+        ]))?;
         check!(people
             .iter()
             .map(|e| e.elm_function_name)
             .collect::<Vec<_>>())
-            .satisfies(eq(vec!["createPerson", "listPeople"]))?;
+        .satisfies(eq(vec!["createPerson", "listPeople"]))?;
         Ok(())
     }
 }

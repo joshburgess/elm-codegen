@@ -103,8 +103,8 @@ mod tests {
         ElmFieldInfo, ElmTypeInfo, ElmTypeKind, ElmTypeRepr, ElmVariantInfo, ElmVariantPayload,
         EnumRepresentation,
     };
-    use test_better::ErrorKind;
     use test_better::prelude::*;
+    use test_better::ErrorKind;
 
     fn overrides() -> TypeOverrides {
         let mut o = TypeOverrides::new();
@@ -131,8 +131,7 @@ mod tests {
     fn leaves_unknown_custom_untouched() -> TestResult {
         let o = overrides();
         let ElmTypeRepr::Custom(name) = o.rewrite(&custom("UserId")) else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Custom"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Custom"));
         };
         check!(name.as_str()).satisfies(eq("UserId"))?;
         Ok(())
@@ -145,16 +144,13 @@ mod tests {
             Box::new(custom("BigDecimal")),
         )))));
         let ElmTypeRepr::Maybe(inner) = o.rewrite(&nested) else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Maybe"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Maybe"));
         };
         let ElmTypeRepr::List(inner) = *inner else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected List"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected List"));
         };
         let ElmTypeRepr::Dict(inner) = *inner else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Dict"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Dict"));
         };
         check!(matches!(*inner, ElmTypeRepr::String)).satisfies(is_true())?;
         Ok(())
@@ -169,8 +165,7 @@ mod tests {
             custom("Unknown"),
         ]);
         let ElmTypeRepr::Tuple(elems) = o.rewrite(&t) else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Tuple"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Tuple"));
         };
         let first = elems.first().or_fail_with("tuple elem 0")?;
         let second = elems.get(1).or_fail_with("tuple elem 1")?;
@@ -178,8 +173,9 @@ mod tests {
         check!(matches!(first, ElmTypeRepr::String)).satisfies(is_true())?;
         check!(matches!(second, ElmTypeRepr::Int)).satisfies(is_true())?;
         let ElmTypeRepr::Custom(name) = third else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Custom(Unknown)"));
+            return Err(
+                TestError::new(ErrorKind::Assertion).with_message("expected Custom(Unknown)")
+            );
         };
         check!(name.as_str()).satisfies(eq("Unknown"))?;
         Ok(())
@@ -201,8 +197,7 @@ mod tests {
             args: vec![custom("BigDecimal")],
         };
         let ElmTypeRepr::App { head, args } = o.rewrite(&app) else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected App"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected App"));
         };
         check!(head.as_str())
             .satisfies(eq("Patch"))
@@ -221,13 +216,13 @@ mod tests {
             args: vec![ElmTypeRepr::Maybe(Box::new(custom("BigDecimal")))],
         };
         let ElmTypeRepr::App { args, .. } = o.rewrite(&nested) else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected App"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected App"));
         };
         let first = args.first().or_fail_with("app arg 0")?;
         let ElmTypeRepr::Maybe(inner) = first else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Maybe inside App"));
+            return Err(
+                TestError::new(ErrorKind::Assertion).with_message("expected Maybe inside App")
+            );
         };
         check!(matches!(**inner, ElmTypeRepr::String)).satisfies(is_true())?;
         Ok(())
@@ -259,13 +254,11 @@ mod tests {
         };
         let out = o.apply(info);
         let ElmTypeKind::Record { fields } = out.kind else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Record"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Record"));
         };
         let field = fields.first().or_fail_with("record field 0")?;
         let ElmTypeRepr::App { head, args } = &field.elm_type else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected App"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected App"));
         };
         check!(head.as_str()).satisfies(eq("Patch"))?;
         let first_arg = args.first().or_fail_with("app arg 0")?;
@@ -316,8 +309,7 @@ mod tests {
             },
         };
         let ElmTypeKind::Newtype { inner } = o.apply(info).kind else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Newtype"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Newtype"));
         };
         check!(matches!(inner, ElmTypeRepr::String)).satisfies(is_true())?;
         Ok(())
@@ -366,25 +358,23 @@ mod tests {
         };
         let out = o.apply(info);
         let ElmTypeKind::Enum { variants, .. } = out.kind else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Enum"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Enum"));
         };
         let v0 = variants.first().or_fail_with("variant 0")?;
         let v1 = variants.get(1).or_fail_with("variant 1")?;
         let v2 = variants.get(2).or_fail_with("variant 2")?;
         let ElmVariantPayload::Newtype(repr) = &v0.payload else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Newtype(String)"));
+            return Err(
+                TestError::new(ErrorKind::Assertion).with_message("expected Newtype(String)")
+            );
         };
         check!(matches!(repr, ElmTypeRepr::String)).satisfies(is_true())?;
         let ElmVariantPayload::Struct(fields) = &v1.payload else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Struct"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Struct"));
         };
         let f0 = fields.first().or_fail_with("struct field 0")?;
         let ElmTypeRepr::Maybe(inner) = &f0.elm_type else {
-            return Err(TestError::new(ErrorKind::Assertion)
-                .with_message("expected Maybe(String)"));
+            return Err(TestError::new(ErrorKind::Assertion).with_message("expected Maybe(String)"));
         };
         check!(matches!(**inner, ElmTypeRepr::String)).satisfies(is_true())?;
         check!(matches!(v2.payload, ElmVariantPayload::Unit)).satisfies(is_true())?;

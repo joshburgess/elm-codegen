@@ -12,8 +12,8 @@ use assert_cmd::Command;
 use elm_client_gen_cli::{run_codegen, CodegenOptions, CodegenOutcome};
 use elm_client_gen_core::{ElmType, ElmTypeInfo};
 use predicates::str::contains;
-use test_better::ErrorKind;
 use test_better::prelude::*;
+use test_better::ErrorKind;
 
 fn fail(msg: impl Into<String>) -> TestError {
     TestError::new(ErrorKind::Assertion).with_message(msg.into())

@@ -11,8 +11,8 @@ use elm_client_gen_core::{
     EnumRepresentation,
 };
 use proptest::prelude::*;
-use test_better::ErrorKind;
 use test_better::prelude::*;
+use test_better::ErrorKind;
 
 fn fail(msg: impl Into<String>) -> TestError {
     TestError::new(ErrorKind::Assertion).with_message(msg.into())
