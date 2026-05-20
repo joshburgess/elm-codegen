@@ -11,6 +11,12 @@ use elm_client_gen_core::{
     EnumRepresentation,
 };
 use proptest::prelude::*;
+use test_better::ErrorKind;
+use test_better::prelude::*;
+
+fn fail(msg: impl Into<String>) -> TestError {
+    TestError::new(ErrorKind::Assertion).with_message(msg.into())
+}
 
 // ── Repr generators ─────────────────────────────────────────────────
 
@@ -106,24 +112,30 @@ fn overrides_fixture() -> TypeOverrides {
     o
 }
 
-proptest! {
-    #[test]
-    fn type_overrides_apply_is_idempotent_on_record(repr in repr_strategy()) {
+#[test]
+fn type_overrides_apply_is_idempotent_on_record() -> TestResult {
+    property!(|inputs| {
+        let (repr,): (ElmTypeRepr,) = inputs;
         let o = overrides_fixture();
         let info = wrap_in_record(repr);
         let once = o.apply(info);
         let twice = o.apply(once.clone());
-        prop_assert_eq!(format!("{:?}", once.kind), format!("{:?}", twice.kind));
-    }
+        check!(format!("{:?}", once.kind)).satisfies(eq(format!("{:?}", twice.kind)))?;
+        Ok(())
+    } using (repr_strategy(),))
+}
 
-    #[test]
-    fn type_overrides_apply_is_idempotent_on_enum_newtype(repr in repr_strategy()) {
+#[test]
+fn type_overrides_apply_is_idempotent_on_enum_newtype() -> TestResult {
+    property!(|inputs| {
+        let (repr,): (ElmTypeRepr,) = inputs;
         let o = overrides_fixture();
         let info = wrap_in_enum_newtype(repr);
         let once = o.apply(info);
         let twice = o.apply(once.clone());
-        prop_assert_eq!(format!("{:?}", once.kind), format!("{:?}", twice.kind));
-    }
+        check!(format!("{:?}", once.kind)).satisfies(eq(format!("{:?}", twice.kind)))?;
+        Ok(())
+    } using (repr_strategy(),))
 }
 
 // ── group_by_module partition law ───────────────────────────────────
@@ -150,21 +162,21 @@ fn typeinfo_strategy() -> impl Strategy<Value = ElmTypeInfo> {
     })
 }
 
-proptest! {
-    #[test]
-    fn group_by_module_preserves_count_and_partitions_by_path(
-        types in prop::collection::vec(typeinfo_strategy(), 0..20),
-    ) {
+#[test]
+fn group_by_module_preserves_count_and_partitions_by_path() -> TestResult {
+    property!(|inputs| {
+        let (types,): (Vec<ElmTypeInfo>,) = inputs;
         let groups = group_by_module(&types);
         let total: usize = groups.values().map(|v| v.len()).sum();
-        prop_assert_eq!(total, types.len());
+        check!(total).satisfies(eq(types.len()))?;
         for (key, members) in &groups {
             for m in members {
                 let member_path: Vec<&str> = m.module_path.to_vec();
-                prop_assert_eq!(&member_path, key);
+                check!(member_path).satisfies(eq(key.clone()))?;
             }
         }
-    }
+        Ok(())
+    } using (prop::collection::vec(typeinfo_strategy(), 0..20),))
 }
 
 // ── Import dedupe: at most one import line per target module ────────
@@ -218,41 +230,37 @@ fn names_for_wrapper_pool(types: &[ElmTypeInfo]) -> NameMap {
     names
 }
 
-proptest! {
-    #[test]
-    fn build_merged_module_emits_at_most_one_import_per_wrapper_module(
-        wrapper_indices in prop::collection::vec(0u8..(WRAPPER_POOL.len() as u8), 0..FIELD_NAMES.len()),
-        arg in repr_strategy(),
-    ) {
+#[test]
+fn build_merged_module_emits_at_most_one_import_per_wrapper_module() -> TestResult {
+    property!(|inputs| {
+        let (wrapper_indices, arg): (Vec<u8>, ElmTypeRepr) = inputs;
         let info = record_with_wrapper_fields(&wrapper_indices, arg);
         let types = vec![info];
         let names = names_for_wrapper_pool(&types);
         let strategy = DefaultStrategy;
         let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
         let groups = group_by_module(&types);
-        let (module_path, group) = groups.into_iter().next().expect("one module group");
+        let (module_path, group) = groups.into_iter().next().ok_or_else(|| fail("one module group"))?;
         let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
         let rendered = elm_ast::pretty_print(&module);
 
         for w in WRAPPER_POOL {
             let needle = format!("import Api.{w}");
             let count = rendered.matches(needle.as_str()).count();
-            prop_assert!(
-                count <= 1,
-                "wrapper {w} imported {count} times in:\n{rendered}",
-            );
+            check!(count <= 1)
+                .satisfies(is_true())
+                .context(format!("wrapper {w} imported {count} times in:\n{rendered}"))?;
             // If at least one field references this wrapper, the import
             // must be emitted exactly once (not zero).
             let referenced = wrapper_indices
                 .iter()
                 .any(|idx| WRAPPER_POOL[*idx as usize] == *w);
             if referenced {
-                prop_assert_eq!(
-                    count, 1,
-                    "wrapper {} referenced but not imported in:\n{}",
-                    w, rendered,
-                );
+                check!(count)
+                    .satisfies(eq(1usize))
+                    .context(format!("wrapper {} referenced but not imported in:\n{}", w, rendered))?;
             }
         }
-    }
+        Ok(())
+    } using (prop::collection::vec(0u8..(WRAPPER_POOL.len() as u8), 0..FIELD_NAMES.len()), repr_strategy()))
 }

@@ -21,6 +21,12 @@ use elm_client_gen_core::ElmType;
 use elm_client_gen_http::{
     elm_endpoint, registered_endpoints, BodyKind, ElmTypeRepr, ExtractorInfo, HttpMethod,
 };
+use test_better::ErrorKind;
+use test_better::prelude::*;
+
+fn fail(msg: impl Into<String>) -> TestError {
+    TestError::new(ErrorKind::Assertion).with_message(msg.into())
+}
 
 #[derive(ElmType)]
 #[elm(module = "Api.Person", name = "Person")]
@@ -83,115 +89,119 @@ async fn patch_person(
 }
 
 #[test]
-fn original_handler_remains_callable() {
+fn original_handler_remains_callable() -> TestResult {
     // Just checks that the macro expansion preserved the function
     // item itself; if it didn't, this wouldn't compile.
     let _: fn(_, _, _) -> _ = get_person;
     let _: fn(_, _) -> _ = create_person;
     let _: fn(_, _, _) -> _ = patch_person;
+    Ok(())
 }
 
 #[test]
-fn get_person_is_registered_with_expected_metadata() {
+fn get_person_is_registered_with_expected_metadata() -> TestResult {
     let endpoint = registered_endpoints()
         .into_iter()
         .find(|e| e.handler_name == "get_person")
-        .expect("get_person not registered");
+        .ok_or_else(|| fail("get_person not registered"))?;
 
-    assert_eq!(endpoint.elm_function_name, "getPerson");
-    assert_eq!(endpoint.elm_module_path, &["Api", "Generated", "Person"]);
-    assert_eq!(endpoint.method, HttpMethod::Get);
-    assert_eq!(endpoint.path_template, "/api/v1/persons/{person_id}");
-    assert_eq!(endpoint.tags, &["read", "person"]);
+    check!(endpoint.elm_function_name).satisfies(eq("getPerson"))?;
+    check!(endpoint.elm_module_path).satisfies(eq(["Api", "Generated", "Person"].as_slice()))?;
+    check!(endpoint.method).satisfies(eq(HttpMethod::Get))?;
+    check!(endpoint.path_template).satisfies(eq("/api/v1/persons/{person_id}"))?;
+    check!(endpoint.tags).satisfies(eq(["read", "person"].as_slice()))?;
 
     // Three params in source order: State (Skip), Path, Query.
-    assert_eq!(endpoint.params.len(), 3);
-    let p0 = endpoint.params.first().expect("param 0");
-    let p1 = endpoint.params.get(1).expect("param 1");
-    let p2 = endpoint.params.get(2).expect("param 2");
-    assert!(matches!(p0, ExtractorInfo::Skip));
+    check!(endpoint.params.len()).satisfies(eq(3))?;
+    let p0 = endpoint.params.first().ok_or_else(|| fail("param 0"))?;
+    let p1 = endpoint.params.get(1).ok_or_else(|| fail("param 1"))?;
+    let p2 = endpoint.params.get(2).ok_or_else(|| fail("param 2"))?;
+    check!(matches!(p0, ExtractorInfo::Skip)).satisfies(is_true())?;
     match p1 {
         ExtractorInfo::PathParams(p) => {
-            assert_eq!(p.len(), 1);
-            assert_eq!(p.first().expect("first path param").ty, ElmTypeRepr::String);
+            check!(p.len()).satisfies(eq(1))?;
+            check!(p.first().ok_or_else(|| fail("first path param"))?.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
         }
-        other => panic!("expected PathParams at index 1, got {:?}", other),
+        other => return Err(fail(format!("expected PathParams at index 1, got {:?}", other))),
     }
     match p2 {
         ExtractorInfo::QueryParams(q) => {
             let names: Vec<_> = q.iter().map(|p| p.name).collect();
-            assert!(names.contains(&"name"));
-            assert!(names.contains(&"active"));
+            check!(names.clone()).satisfies(contains(eq("name")))?;
+            check!(names).satisfies(contains(eq("active")))?;
         }
-        other => panic!("expected QueryParams at index 2, got {:?}", other),
+        other => return Err(fail(format!("expected QueryParams at index 2, got {:?}", other))),
     }
 
     match &endpoint.response.success {
-        Some(ElmTypeRepr::Custom(name)) => assert_eq!(name, "Person"),
-        other => panic!("expected Some(Custom(\"Person\")), got {:?}", other),
+        Some(ElmTypeRepr::Custom(name)) => check!(name.as_str()).satisfies(eq("Person"))?,
+        other => return Err(fail(format!("expected Some(Custom(\"Person\")), got {:?}", other))),
     }
+    Ok(())
 }
 
 #[test]
-fn patch_person_registers_with_patch_method_and_body() {
+fn patch_person_registers_with_patch_method_and_body() -> TestResult {
     let endpoint = registered_endpoints()
         .into_iter()
         .find(|e| e.handler_name == "patch_person")
-        .expect("patch_person not registered");
+        .ok_or_else(|| fail("patch_person not registered"))?;
 
-    assert_eq!(endpoint.elm_function_name, "patchPerson");
-    assert_eq!(endpoint.method, HttpMethod::Patch);
-    assert_eq!(endpoint.path_template, "/api/v1/persons/{person_id}");
+    check!(endpoint.elm_function_name).satisfies(eq("patchPerson"))?;
+    check!(endpoint.method).satisfies(eq(HttpMethod::Patch))?;
+    check!(endpoint.path_template).satisfies(eq("/api/v1/persons/{person_id}"))?;
 
     // params[0] State (Skip), params[1] Path, params[2] Json body.
-    assert_eq!(endpoint.params.len(), 3);
-    let p0 = endpoint.params.first().expect("param 0");
-    let p1 = endpoint.params.get(1).expect("param 1");
-    let p2 = endpoint.params.get(2).expect("param 2");
-    assert!(matches!(p0, ExtractorInfo::Skip));
+    check!(endpoint.params.len()).satisfies(eq(3))?;
+    let p0 = endpoint.params.first().ok_or_else(|| fail("param 0"))?;
+    let p1 = endpoint.params.get(1).ok_or_else(|| fail("param 1"))?;
+    let p2 = endpoint.params.get(2).ok_or_else(|| fail("param 2"))?;
+    check!(matches!(p0, ExtractorInfo::Skip)).satisfies(is_true())?;
     match p1 {
         ExtractorInfo::PathParams(p) => {
-            assert_eq!(p.len(), 1);
-            assert_eq!(p.first().expect("first path param").ty, ElmTypeRepr::String);
+            check!(p.len()).satisfies(eq(1))?;
+            check!(p.first().ok_or_else(|| fail("first path param"))?.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
         }
-        other => panic!("expected PathParams at index 1, got {:?}", other),
+        other => return Err(fail(format!("expected PathParams at index 1, got {:?}", other))),
     }
     match p2 {
         ExtractorInfo::Body {
             kind: BodyKind::Json,
             ty: ElmTypeRepr::Custom(name),
         } => {
-            assert_eq!(name, "CreatePerson");
+            check!(name.as_str()).satisfies(eq("CreatePerson"))?;
         }
-        other => panic!("expected Body {{ Json, .. }}, got {:?}", other),
+        other => return Err(fail(format!("expected Body {{ Json, .. }}, got {:?}", other))),
     }
 
     match &endpoint.response.success {
-        Some(ElmTypeRepr::Custom(name)) => assert_eq!(name, "Person"),
-        other => panic!("expected Some(Custom(\"Person\")), got {:?}", other),
+        Some(ElmTypeRepr::Custom(name)) => check!(name.as_str()).satisfies(eq("Person"))?,
+        other => return Err(fail(format!("expected Some(Custom(\"Person\")), got {:?}", other))),
     }
+    Ok(())
 }
 
 #[test]
-fn create_person_uses_default_name_and_no_tags() {
+fn create_person_uses_default_name_and_no_tags() -> TestResult {
     let endpoint = registered_endpoints()
         .into_iter()
         .find(|e| e.handler_name == "create_person")
-        .expect("create_person not registered");
+        .ok_or_else(|| fail("create_person not registered"))?;
 
-    assert_eq!(endpoint.elm_function_name, "createPerson");
-    assert_eq!(endpoint.method, HttpMethod::Post);
-    assert!(endpoint.tags.is_empty());
+    check!(endpoint.elm_function_name).satisfies(eq("createPerson"))?;
+    check!(endpoint.method).satisfies(eq(HttpMethod::Post))?;
+    check!(endpoint.tags.is_empty()).satisfies(is_true())?;
 
     // params[1] is Json<CreatePerson> -> Body
-    let p1 = endpoint.params.get(1).expect("param 1");
+    let p1 = endpoint.params.get(1).ok_or_else(|| fail("param 1"))?;
     match p1 {
         ExtractorInfo::Body {
             kind: BodyKind::Json,
             ty: ElmTypeRepr::Custom(name),
         } => {
-            assert_eq!(name, "CreatePerson");
+            check!(name.as_str()).satisfies(eq("CreatePerson"))?;
         }
-        other => panic!("expected Body {{ Json, .. }}, got {:?}", other),
+        other => return Err(fail(format!("expected Body {{ Json, .. }}, got {:?}", other))),
     }
+    Ok(())
 }

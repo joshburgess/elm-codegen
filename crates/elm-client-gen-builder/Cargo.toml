@@ -18,3 +18,4 @@ elm-client-gen-core = { workspace = true, features = ["derive"] }
 elm-client-gen-http = { workspace = true, features = ["derive"] }
 insta.workspace = true
 proptest.workspace = true
+test-better.workspace = true

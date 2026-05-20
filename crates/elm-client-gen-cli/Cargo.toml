@@ -27,3 +27,4 @@ elm-client-gen-core = { workspace = true, features = ["derive"] }
 assert_cmd.workspace = true
 predicates.workspace = true
 tempfile.workspace = true
+test-better.workspace = true

@@ -12,6 +12,7 @@ use elm_client_gen_builder::{
     build_merged_module, group_by_module, DefaultStrategy, MaybeEncoderRef, NameMap,
 };
 use elm_client_gen_core::{ElmType, ElmTypeInfo};
+use test_better::prelude::*;
 
 fn render(types: Vec<ElmTypeInfo>) -> String {
     let names = NameMap::from_types(&types);
@@ -42,9 +43,10 @@ pub struct SnapPersonApi {
 }
 
 #[test]
-fn snapshot_record_module() {
+fn snapshot_record_module() -> TestResult {
     let rendered = render(vec![SnapPersonApi::elm_type_info()]);
     insta::assert_snapshot!("record_module", rendered);
+    Ok(())
 }
 
 // ── Newtype ─────────────────────────────────────────────────────────
@@ -55,9 +57,10 @@ fn snapshot_record_module() {
 pub struct SnapUserIdApi(String);
 
 #[test]
-fn snapshot_newtype_module() {
+fn snapshot_newtype_module() -> TestResult {
     let rendered = render(vec![SnapUserIdApi::elm_type_info()]);
     insta::assert_snapshot!("newtype_module", rendered);
+    Ok(())
 }
 
 // ── Bare-string enum ────────────────────────────────────────────────
@@ -73,9 +76,10 @@ pub enum SnapStatusApi {
 }
 
 #[test]
-fn snapshot_bare_string_enum_module() {
+fn snapshot_bare_string_enum_module() -> TestResult {
     let rendered = render(vec![SnapStatusApi::elm_type_info()]);
     insta::assert_snapshot!("bare_string_enum_module", rendered);
+    Ok(())
 }
 
 // ── Internally-tagged enum with struct + unit variants ──────────────
@@ -90,9 +94,10 @@ pub enum SnapEventApi {
 }
 
 #[test]
-fn snapshot_internally_tagged_enum_module() {
+fn snapshot_internally_tagged_enum_module() -> TestResult {
     let rendered = render(vec![SnapEventApi::elm_type_info()]);
     insta::assert_snapshot!("internally_tagged_enum_module", rendered);
+    Ok(())
 }
 
 // ── Untagged enum ───────────────────────────────────────────────────
@@ -107,9 +112,10 @@ pub enum SnapValueApi {
 }
 
 #[test]
-fn snapshot_untagged_enum_module() {
+fn snapshot_untagged_enum_module() -> TestResult {
     let rendered = render(vec![SnapValueApi::elm_type_info()]);
     insta::assert_snapshot!("untagged_enum_module", rendered);
+    Ok(())
 }
 
 // ── Tuple field ─────────────────────────────────────────────────────
@@ -124,9 +130,10 @@ pub struct SnapCoordinatesApi {
 }
 
 #[test]
-fn snapshot_tuple_fields_module() {
+fn snapshot_tuple_fields_module() -> TestResult {
     let rendered = render(vec![SnapCoordinatesApi::elm_type_info()]);
     insta::assert_snapshot!("tuple_fields_module", rendered);
+    Ok(())
 }
 
 // ── Internally-tagged newtype-of-struct (mergeTaggedObject helper) ──
@@ -150,12 +157,13 @@ pub enum SnapTaggedActionApi {
 }
 
 #[test]
-fn snapshot_merge_tagged_object_module() {
+fn snapshot_merge_tagged_object_module() -> TestResult {
     let rendered = render(vec![
         SnapTaggedAddressApi::elm_type_info(),
         SnapTaggedActionApi::elm_type_info(),
     ]);
     insta::assert_snapshot!("merge_tagged_object_module", rendered);
+    Ok(())
 }
 
 // ── App + decoder_step + encoder_pairs (0.3.0 wrapper hooks) ────────
@@ -195,11 +203,12 @@ fn names_with_patch_module(types: &[ElmTypeInfo]) -> NameMap {
 }
 
 #[test]
-fn snapshot_patch_field_module() {
+fn snapshot_patch_field_module() -> TestResult {
     let types = vec![SnapProfilePatchApi::elm_type_info()];
     let names = names_with_patch_module(&types);
     let rendered = render_with_names(types, names);
     insta::assert_snapshot!("patch_field_module", rendered);
+    Ok(())
 }
 
 // ── Multiple types share one Elm module → one collapsed import ──────
@@ -231,7 +240,7 @@ pub struct SnapMultiPatchRightApi {
 }
 
 #[test]
-fn snapshot_imports_collapse_for_same_target_module() {
+fn snapshot_imports_collapse_for_same_target_module() -> TestResult {
     let types = vec![
         SnapMultiPatchLeftApi::elm_type_info(),
         SnapMultiPatchRightApi::elm_type_info(),
@@ -239,4 +248,5 @@ fn snapshot_imports_collapse_for_same_target_module() {
     let names = names_with_patch_module(&types);
     let rendered = render_with_names(types, names);
     insta::assert_snapshot!("imports_collapse_for_same_target_module", rendered);
+    Ok(())
 }

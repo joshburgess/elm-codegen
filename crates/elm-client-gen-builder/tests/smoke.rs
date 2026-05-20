@@ -6,6 +6,12 @@ use elm_client_gen_builder::{
     build_merged_module, group_by_module, DefaultStrategy, MaybeEncoderRef, NameMap,
 };
 use elm_client_gen_core::{registered_types, ElmType, ElmTypeInfo};
+use test_better::ErrorKind;
+use test_better::prelude::*;
+
+fn fail(msg: impl Into<String>) -> TestError {
+    TestError::new(ErrorKind::Assertion).with_message(msg.into())
+}
 
 #[derive(ElmType)]
 #[elm(module = "Api.Person", name = "Person", tags = "entity")]
@@ -31,40 +37,43 @@ pub struct PersonFilterApi {
 }
 
 #[test]
-fn derive_emits_type_info_with_field_metadata() {
+fn derive_emits_type_info_with_field_metadata() -> TestResult {
     let info = PersonApi::elm_type_info();
 
-    assert_eq!(info.rust_name, "PersonApi");
-    assert_eq!(info.module_path, vec!["Api", "Person"]);
-    assert_eq!(info.type_name, "Person");
-    assert_eq!(info.tags, vec!["entity"]);
-    assert!(info.has_tag("entity"));
+    check!(info.rust_name).satisfies(eq("PersonApi"))?;
+    check!(info.module_path.as_slice()).satisfies(eq(["Api", "Person"].as_slice()))?;
+    check!(info.type_name).satisfies(eq("Person"))?;
+    check!(info.tags.as_slice()).satisfies(eq(["entity"].as_slice()))?;
+    check!(info.has_tag("entity")).satisfies(is_true())?;
 
-    assert_eq!(info.fields().len(), 5);
-    let full_name = info.fields().get(1).expect("fullName field");
-    assert_eq!(full_name.rust_name, "fullName");
-    assert_eq!(full_name.elm_name, "fullName");
+    check!(info.fields().len()).satisfies(eq(5))?;
+    let full_name = info.fields().get(1).or_fail_with("fullName field")?;
+    check!(full_name.rust_name).satisfies(eq("fullName"))?;
+    check!(full_name.elm_name).satisfies(eq("fullName"))?;
 
-    let nickname = info.fields().get(3).expect("nickname field");
-    assert_eq!(nickname.elm_name, "nickname");
-    assert!(nickname.is_optional);
+    let nickname = info.fields().get(3).or_fail_with("nickname field")?;
+    check!(nickname.elm_name).satisfies(eq("nickname"))?;
+    check!(nickname.is_optional).satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn skip_and_rename_attributes_are_honored() {
+fn skip_and_rename_attributes_are_honored() -> TestResult {
     let info = PersonFilterApi::elm_type_info();
     let names: Vec<&str> = info.fields().iter().map(|f| f.elm_name).collect();
 
-    assert!(!names.contains(&"internal"));
-    assert!(names.contains(&"nameContains"));
-    assert!(names.contains(&"minAge"));
+    check!(names.contains(&"internal")).satisfies(is_false())?;
+    check!(names.contains(&"nameContains")).satisfies(is_true())?;
+    check!(names.contains(&"minAge")).satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn registered_types_picks_up_derived_structs() {
+fn registered_types_picks_up_derived_structs() -> TestResult {
     let names: Vec<&str> = registered_types().iter().map(|t| t.rust_name).collect();
-    assert!(names.contains(&"PersonApi"));
-    assert!(names.contains(&"PersonFilterApi"));
+    check!(names.contains(&"PersonApi")).satisfies(is_true())?;
+    check!(names.contains(&"PersonFilterApi")).satisfies(is_true())?;
+    Ok(())
 }
 
 #[derive(ElmType)]
@@ -82,15 +91,15 @@ pub enum TreasurerInvoiceStateApi {
 }
 
 #[test]
-fn enum_derive_emits_variant_metadata() {
+fn enum_derive_emits_variant_metadata() -> TestResult {
     let info = TreasurerInvoiceStateApi::elm_type_info();
 
-    assert_eq!(info.rust_name, "TreasurerInvoiceStateApi");
-    assert_eq!(info.type_name, "TreasurerInvoiceState");
-    assert!(info.is_enum());
+    check!(info.rust_name).satisfies(eq("TreasurerInvoiceStateApi"))?;
+    check!(info.type_name).satisfies(eq("TreasurerInvoiceState"))?;
+    check!(info.is_enum()).satisfies(is_true())?;
 
     let variants = info.variants();
-    assert_eq!(variants.len(), 7);
+    check!(variants.len()).satisfies(eq(7))?;
 
     let by_rust: std::collections::HashMap<_, _> = variants
         .iter()
@@ -98,90 +107,68 @@ fn enum_derive_emits_variant_metadata() {
         .collect();
 
     // Default Elm name = Rust ident; default json_tag = serde rename_all applied.
-    assert_eq!(
-        by_rust.get("Open").copied().expect("Open variant"),
-        ("Open", "open"),
-    );
-    assert_eq!(
-        by_rust
-            .get("Finalized")
-            .copied()
-            .expect("Finalized variant"),
-        ("Finalized", "finalized"),
-    );
-    assert_eq!(
-        by_rust.get("Deleted").copied().expect("Deleted variant"),
-        ("Deleted", "deleted"),
-    );
+    check!(by_rust.get("Open").copied().or_fail_with("Open variant")?).satisfies(eq(("Open", "open")))?;
+    check!(by_rust.get("Finalized").copied().or_fail_with("Finalized variant")?).satisfies(eq(("Finalized", "finalized")))?;
+    check!(by_rust.get("Deleted").copied().or_fail_with("Deleted variant")?).satisfies(eq(("Deleted", "deleted")))?;
+    Ok(())
 }
 
 #[test]
-fn enum_module_renders_type_decoder_and_encoder() {
+fn enum_module_renders_type_decoder_and_encoder() -> TestResult {
     let types: Vec<ElmTypeInfo> = vec![TreasurerInvoiceStateApi::elm_type_info()];
     let names = NameMap::from_types(&types);
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
     // Type declaration uses `type` (not `type alias`) and lists constructors.
-    assert!(
-        rendered.contains("type TreasurerInvoiceState"),
-        "missing custom type declaration:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Open"),
-        "missing Open constructor:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Deleted"),
-        "missing Deleted constructor:\n{rendered}"
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("type TreasurerInvoiceState"))
+        .context(format!("missing custom type declaration:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Open"))
+        .context(format!("missing Open constructor:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Deleted"))
+        .context(format!("missing Deleted constructor:\n{rendered}"))?;
 
     // Exposing list opens constructors so callers can pattern-match.
-    assert!(
-        rendered.contains("TreasurerInvoiceState(..)"),
-        "expected TreasurerInvoiceState(..) in exposing:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("TreasurerInvoiceState(..)"))
+        .context(format!("expected TreasurerInvoiceState(..) in exposing:\n{rendered}"))?;
 
     // Decoder dispatches on the json string tags (snake_case).
-    assert!(
-        rendered.contains("treasurerInvoiceStateDecoder"),
-        "missing decoder:\n{rendered}",
-    );
-    assert!(
-        rendered.contains(r#""open""#),
-        "missing snake_case json tag:\n{rendered}"
-    );
-    assert!(
-        rendered.contains(r#""finalized""#),
-        "missing snake_case json tag:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Decode.string"),
-        "decoder should start from Decode.string:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Decode.andThen"),
-        "decoder should use andThen:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Decode.fail"),
-        "decoder should fail on unknown tag:\n{rendered}"
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("treasurerInvoiceStateDecoder"))
+        .context(format!("missing decoder:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#""open""#))
+        .context(format!("missing snake_case json tag:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#""finalized""#))
+        .context(format!("missing snake_case json tag:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.string"))
+        .context(format!("decoder should start from Decode.string:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.andThen"))
+        .context(format!("decoder should use andThen:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.fail"))
+        .context(format!("decoder should fail on unknown tag:\n{rendered}"))?;
 
     // Encoder uses `case` and Encode.string with the same tags.
-    assert!(
-        rendered.contains("encodeTreasurerInvoiceState"),
-        "missing encoder:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Encode.string"),
-        "encoder should call Encode.string:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("encodeTreasurerInvoiceState"))
+        .context(format!("missing encoder:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Encode.string"))
+        .context(format!("encoder should call Encode.string:\n{rendered}"))?;
+    Ok(())
 }
 
 // The derive macro recognises types by the last path segment ident
@@ -208,107 +195,97 @@ pub enum UserEmailAddressApi {
 }
 
 #[test]
-fn tagged_enum_metadata_carries_payload_and_tag_key() {
+fn tagged_enum_metadata_carries_payload_and_tag_key() -> TestResult {
     let info = UserEmailAddressApi::elm_type_info();
-    assert!(info.is_enum());
+    check!(info.is_enum()).satisfies(is_true())?;
     let variants = info.variants();
-    assert_eq!(variants.len(), 3);
+    check!(variants.len()).satisfies(eq(3))?;
 
     let confirmed = variants
         .iter()
         .find(|v| v.rust_name == "Confirmed")
-        .expect("Confirmed variant");
+        .or_fail_with("Confirmed variant")?;
     let confirmed_fields = confirmed.payload.struct_fields();
-    assert_eq!(confirmed_fields.len(), 2);
-    let confirmed_at = confirmed_fields.first().expect("confirmed_at field");
-    assert!(confirmed_at.is_optional);
-    assert_eq!(confirmed_at.elm_name, "confirmedAt");
+    check!(confirmed_fields.len()).satisfies(eq(2))?;
+    let confirmed_at = confirmed_fields.first().or_fail_with("confirmed_at field")?;
+    check!(confirmed_at.is_optional).satisfies(is_true())?;
+    check!(confirmed_at.elm_name).satisfies(eq("confirmedAt"))?;
 
     let locked = variants
         .iter()
         .find(|v| v.rust_name == "Locked")
-        .expect("Locked variant");
-    assert!(locked.payload.is_unit());
+        .or_fail_with("Locked variant")?;
+    check!(locked.payload.is_unit()).satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn tagged_enum_renders_struct_variants_with_anonymous_records() {
+fn tagged_enum_renders_struct_variants_with_anonymous_records() -> TestResult {
     let types: Vec<ElmTypeInfo> = vec![UserEmailAddressApi::elm_type_info()];
     let names = NameMap::from_types(&types);
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
-    assert!(
-        rendered.contains("type UserEmailAddress"),
-        "missing custom type:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("type UserEmailAddress"))
+        .context(format!("missing custom type:\n{rendered}"))?;
     // Struct variants render with an anonymous record arg.
-    assert!(
-        rendered.contains("Confirmed {"),
-        "expected `Confirmed {{` in rendered output:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Unconfirmed {"),
-        "expected `Unconfirmed {{` in rendered output:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Confirmed {"))
+        .context(format!("expected `Confirmed {{` in rendered output:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Unconfirmed {"))
+        .context(format!("expected `Unconfirmed {{` in rendered output:\n{rendered}"))?;
     // Unit variants stay bare.
-    assert!(
-        rendered.contains("| Locked"),
-        "expected `| Locked` in rendered output:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("| Locked"))
+        .context(format!("expected `| Locked` in rendered output:\n{rendered}"))?;
 
     // Decoder reads the discriminator field and dispatches.
-    assert!(
-        rendered.contains(r#"Decode.field "type""#),
-        "decoder should read the tag field:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.andThen"),
-        "decoder should use andThen:\n{rendered}",
-    );
-    assert!(
-        rendered.contains(r#""Confirmed""#),
-        "decoder should branch on Confirmed:\n{rendered}",
-    );
-    assert!(
-        rendered.contains(r#"required "email_address""#),
-        "Confirmed branch should require email_address:\n{rendered}",
-    );
-    assert!(
-        rendered.contains(r#"optional "confirmed_at""#),
-        "Confirmed branch should make confirmed_at optional:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"Decode.field "type""#))
+        .context(format!("decoder should read the tag field:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.andThen"))
+        .context(format!("decoder should use andThen:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#""Confirmed""#))
+        .context(format!("decoder should branch on Confirmed:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"required "email_address""#))
+        .context(format!("Confirmed branch should require email_address:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"optional "confirmed_at""#))
+        .context(format!("Confirmed branch should make confirmed_at optional:\n{rendered}"))?;
 
     // Encoder pattern-matches on the constructor with a payload binding
     // and emits the tag alongside the payload fields.
-    assert!(
-        rendered.contains("Confirmed payload"),
-        "encoder should bind payload in Confirmed branch:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("payload.emailAddress"),
-        "encoder should access payload.emailAddress:\n{rendered}",
-    );
-    assert!(
+    check!(rendered.as_str())
+        .satisfies(contains_str("Confirmed payload"))
+        .context(format!("encoder should bind payload in Confirmed branch:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("payload.emailAddress"))
+        .context(format!("encoder should access payload.emailAddress:\n{rendered}"))?;
+    check!(
         rendered.contains(r#"( "type", Encode.string "Confirmed" )"#)
-            || rendered.contains(r#"("type", Encode.string "Confirmed")"#),
-        "encoder should emit the tag pair:\n{rendered}",
-    );
+            || rendered.contains(r#"("type", Encode.string "Confirmed")"#)
+    )
+    .satisfies(is_true())
+    .context(format!("encoder should emit the tag pair:\n{rendered}"))?;
 
     // Time/Iso8601 imports kick in because of the Posix payload field.
-    assert!(
-        rendered.contains("import Time"),
-        "expected Time import:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("import Iso8601"),
-        "expected Iso8601 import:\n{rendered}"
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("import Time"))
+        .context(format!("expected Time import:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("import Iso8601"))
+        .context(format!("expected Iso8601 import:\n{rendered}"))?;
+    Ok(())
 }
 
 // ── Untagged enum coverage ──────────────────────────────────────────
@@ -327,7 +304,7 @@ pub enum SearchHitApi {
 }
 
 #[test]
-fn untagged_enum_metadata_carries_variant_payloads() {
+fn untagged_enum_metadata_carries_variant_payloads() -> TestResult {
     use elm_client_gen_core::{ElmTypeKind, ElmTypeRepr, ElmVariantPayload, EnumRepresentation};
 
     let info = SearchHitApi::elm_type_info();
@@ -336,106 +313,97 @@ fn untagged_enum_metadata_carries_variant_payloads() {
         representation,
     } = &info.kind
     else {
-        panic!("expected enum kind");
+        return Err(fail("expected enum kind"));
     };
-    assert!(matches!(representation, EnumRepresentation::Untagged));
-    assert_eq!(variants.len(), 3);
+    check!(matches!(representation, EnumRepresentation::Untagged)).satisfies(is_true())?;
+    check!(variants.len()).satisfies(eq(3))?;
 
     let term = variants
         .iter()
         .find(|v| v.rust_name == "Term")
-        .expect("Term variant");
+        .or_fail_with("Term variant")?;
     match &term.payload {
         ElmVariantPayload::Newtype(ElmTypeRepr::String) => {}
-        other => panic!("expected Newtype(String) for Term, got {other:?}"),
+        other => return Err(fail(format!("expected Newtype(String) for Term, got {other:?}"))),
     }
 
     let range = variants
         .iter()
         .find(|v| v.rust_name == "Range")
-        .expect("Range variant");
+        .or_fail_with("Range variant")?;
     let range_fields = range.payload.struct_fields();
-    assert_eq!(range_fields.len(), 2);
-    assert_eq!(
-        range_fields.first().expect("first range field").elm_name,
-        "from"
-    );
+    check!(range_fields.len()).satisfies(eq(2))?;
+    check!(range_fields.first().or_fail_with("first range field")?.elm_name).satisfies(eq("from"))?;
 
     let empty = variants
         .iter()
         .find(|v| v.rust_name == "Empty")
-        .expect("Empty variant");
-    assert!(empty.payload.is_unit());
+        .or_fail_with("Empty variant")?;
+    check!(empty.payload.is_unit()).satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn untagged_enum_renders_oneof_decoder_and_tag_free_encoder() {
+fn untagged_enum_renders_oneof_decoder_and_tag_free_encoder() -> TestResult {
     let types: Vec<ElmTypeInfo> = vec![SearchHitApi::elm_type_info()];
     let names = NameMap::from_types(&types);
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
     // Type renders newtype variant with positional arg, struct variant
     // with anonymous record, unit variant bare.
-    assert!(
-        rendered.contains("Term String"),
-        "missing Term String constructor:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Range") && rendered.contains("{ from : Int"),
-        "missing Range struct constructor with anonymous record:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("| Empty"),
-        "missing Empty unit constructor:\n{rendered}"
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Term String"))
+        .context(format!("missing Term String constructor:\n{rendered}"))?;
+    check!(
+        rendered.contains("Range") && rendered.contains("{ from : Int")
+    )
+    .satisfies(is_true())
+    .context(format!("missing Range struct constructor with anonymous record:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("| Empty"))
+        .context(format!("missing Empty unit constructor:\n{rendered}"))?;
 
     // Decoder uses Decode.oneOf, NOT Decode.field "type" / andThen.
-    assert!(
-        rendered.contains("Decode.oneOf"),
-        "untagged decoder must use Decode.oneOf:\n{rendered}",
-    );
-    assert!(
-        !rendered.contains(r#"Decode.field "type""#),
-        "untagged decoder must not read a tag field:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.map Term"),
-        "missing Decode.map Term:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.null Empty"),
-        "missing Decode.null Empty for unit variant:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.oneOf"))
+        .context(format!("untagged decoder must use Decode.oneOf:\n{rendered}"))?;
+    check!(rendered.contains(r#"Decode.field "type""#))
+        .satisfies(is_false())
+        .context(format!("untagged decoder must not read a tag field:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.map Term"))
+        .context(format!("missing Decode.map Term:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.null Empty"))
+        .context(format!("missing Decode.null Empty for unit variant:\n{rendered}"))?;
 
     // Encoder is tag-free: each branch emits the inner shape directly.
-    assert!(
-        rendered.contains("encodeSearchHit"),
-        "missing encoder:\n{rendered}",
-    );
-    assert!(
-        !rendered.contains(r#"( "type", Encode.string"#),
-        "untagged encoder must not emit a tag pair:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Term inner"),
-        "encoder should bind newtype payload as `inner`:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Encode.string inner"),
-        "newtype Term should encode inner directly:\n{rendered}",
-    );
-    assert!(
+    check!(rendered.as_str())
+        .satisfies(contains_str("encodeSearchHit"))
+        .context(format!("missing encoder:\n{rendered}"))?;
+    check!(rendered.contains(r#"( "type", Encode.string"#))
+        .satisfies(is_false())
+        .context(format!("untagged encoder must not emit a tag pair:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Term inner"))
+        .context(format!("encoder should bind newtype payload as `inner`:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Encode.string inner"))
+        .context(format!("newtype Term should encode inner directly:\n{rendered}"))?;
+    check!(
         rendered.contains("Empty ->\n            Encode.null")
             || rendered.contains("Empty ->\n        Encode.null")
-            || rendered.contains("Empty ->") && rendered.contains("Encode.null"),
-        "Empty branch should encode as null:\n{rendered}",
-    );
+            || rendered.contains("Empty ->") && rendered.contains("Encode.null")
+    )
+    .satisfies(is_true())
+    .context(format!("Empty branch should encode as null:\n{rendered}"))?;
+    Ok(())
 }
 
 // ── Newtype struct + wrapper passthrough + custom encoder ───────────
@@ -457,7 +425,7 @@ pub struct WrappedApi {
 }
 
 #[test]
-fn newtype_struct_emits_type_alias() {
+fn newtype_struct_emits_type_alias() -> TestResult {
     use elm_client_gen_core::{ElmTypeKind, ElmTypeRepr};
 
     let info = UserIdApi::elm_type_info();
@@ -465,58 +433,54 @@ fn newtype_struct_emits_type_alias() {
         ElmTypeKind::Newtype {
             inner: ElmTypeRepr::String,
         } => {}
-        other => panic!("expected Newtype(String), got {other:?}"),
+        other => return Err(fail(format!("expected Newtype(String), got {other:?}"))),
     }
-    assert!(info.is_newtype());
+    check!(info.is_newtype()).satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn newtype_struct_renders_alias_and_delegating_codec() {
+fn newtype_struct_renders_alias_and_delegating_codec() -> TestResult {
     let types: Vec<ElmTypeInfo> = vec![UserIdApi::elm_type_info()];
     let names = NameMap::from_types(&types);
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
     // Renders as a type alias, not a custom type with a constructor.
-    assert!(
-        rendered.contains("type alias UserId"),
-        "expected `type alias UserId ...`:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("type alias UserId"))
+        .context(format!("expected `type alias UserId ...`:\n{rendered}"))?;
     let alias_idx = rendered
         .find("type alias UserId")
-        .expect("rendered output should contain the type alias");
+        .or_fail_with("rendered output should contain the type alias")?;
     let after = &rendered[alias_idx..];
-    assert!(
-        after.contains("String"),
-        "alias should resolve to String:\n{rendered}",
-    );
+    check!(after.contains("String"))
+        .satisfies(is_true())
+        .context(format!("alias should resolve to String:\n{rendered}"))?;
 
     // Decoder/encoder delegate to String's codec via type-alias transparency.
-    assert!(
-        rendered.contains("userIdDecoder"),
-        "missing decoder:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Decode.string"),
-        "decoder should delegate to Decode.string:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("encodeUserId"),
-        "missing encoder:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Encode.string value"),
-        "encoder should delegate to Encode.string:\n{rendered}"
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("userIdDecoder"))
+        .context(format!("missing decoder:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.string"))
+        .context(format!("decoder should delegate to Decode.string:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("encodeUserId"))
+        .context(format!("missing encoder:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Encode.string value"))
+        .context(format!("encoder should delegate to Encode.string:\n{rendered}"))?;
+    Ok(())
 }
 
 #[test]
-fn box_and_arc_passthrough_to_inner_type() {
+fn box_and_arc_passthrough_to_inner_type() -> TestResult {
     let info = WrappedApi::elm_type_info();
     let by_name: std::collections::HashMap<_, _> = info
         .fields()
@@ -524,44 +488,46 @@ fn box_and_arc_passthrough_to_inner_type() {
         .map(|f| (f.elm_name, &f.elm_type))
         .collect();
     use elm_client_gen_core::ElmTypeRepr;
-    assert!(matches!(
-        by_name.get("boxedName").expect("boxedName field"),
+    check!(matches!(
+        by_name.get("boxedName").or_fail_with("boxedName field")?,
         ElmTypeRepr::String
-    ));
-    assert!(matches!(
-        by_name.get("arcCount").expect("arcCount field"),
+    ))
+    .satisfies(is_true())?;
+    check!(matches!(
+        by_name.get("arcCount").or_fail_with("arcCount field")?,
         ElmTypeRepr::Int
-    ));
+    ))
+    .satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn custom_encoder_attribute_substitutes_field_encoder() {
+fn custom_encoder_attribute_substitutes_field_encoder() -> TestResult {
     let info = WrappedApi::elm_type_info();
     let price = info
         .fields()
         .iter()
         .find(|f| f.elm_name == "price")
-        .expect("price field");
-    assert_eq!(price.custom_encoder, Some("Money.encode"));
+        .or_fail_with("price field")?;
+    check!(price.custom_encoder).satisfies(eq(Some("Money.encode")))?;
 
     let types: Vec<ElmTypeInfo> = vec![WrappedApi::elm_type_info()];
     let names = NameMap::from_types(&types);
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
     // Custom encoder substituted: should call Money.encode, NOT Encode.int.
-    assert!(
-        rendered.contains("Money.encode value.price"),
-        "encoder should delegate to Money.encode:\n{rendered}",
-    );
-    assert!(
-        !rendered.contains("Encode.int value.price"),
-        "encoder should not use the type-driven encoder for `price`:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Money.encode value.price"))
+        .context(format!("encoder should delegate to Money.encode:\n{rendered}"))?;
+    check!(rendered.contains("Encode.int value.price"))
+        .satisfies(is_false())
+        .context(format!("encoder should not use the type-driven encoder for `price`:\n{rendered}"))?;
+    Ok(())
 }
 
 // ── Tuple support ───────────────────────────────────────────────────
@@ -576,7 +542,7 @@ pub struct CoordinatesApi {
 }
 
 #[test]
-fn tuple_field_repr_carries_inner_types() {
+fn tuple_field_repr_carries_inner_types() -> TestResult {
     use elm_client_gen_core::ElmTypeRepr;
 
     let info = CoordinatesApi::elm_type_info();
@@ -586,79 +552,78 @@ fn tuple_field_repr_carries_inner_types() {
         .map(|f| (f.elm_name, &f.elm_type))
         .collect();
 
-    match by_name.get("latLon").expect("latLon field") {
+    match by_name.get("latLon").or_fail_with("latLon field")? {
         ElmTypeRepr::Tuple(elems) => {
-            assert_eq!(elems.len(), 2);
-            assert!(matches!(
-                elems.first().expect("first tuple element"),
+            check!(elems.len()).satisfies(eq(2))?;
+            check!(matches!(
+                elems.first().or_fail_with("first tuple element")?,
                 ElmTypeRepr::Float
-            ));
-            assert!(matches!(
-                elems.get(1).expect("second tuple element"),
+            ))
+            .satisfies(is_true())?;
+            check!(matches!(
+                elems.get(1).or_fail_with("second tuple element")?,
                 ElmTypeRepr::Float
-            ));
+            ))
+            .satisfies(is_true())?;
         }
-        other => panic!("expected Tuple for latLon, got {other:?}"),
+        other => return Err(fail(format!("expected Tuple for latLon, got {other:?}"))),
     }
-    match by_name.get("boundingBox").expect("boundingBox field") {
-        ElmTypeRepr::Tuple(elems) => assert_eq!(elems.len(), 3),
-        other => panic!("expected Tuple for boundingBox, got {other:?}"),
+    match by_name.get("boundingBox").or_fail_with("boundingBox field")? {
+        ElmTypeRepr::Tuple(elems) => check!(elems.len()).satisfies(eq(3))?,
+        other => return Err(fail(format!("expected Tuple for boundingBox, got {other:?}"))),
     }
+    Ok(())
 }
 
 #[test]
-fn tuple_renders_type_decoder_and_encoder() {
+fn tuple_renders_type_decoder_and_encoder() -> TestResult {
     let types: Vec<ElmTypeInfo> = vec![CoordinatesApi::elm_type_info()];
     let names = NameMap::from_types(&types);
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
     // Type annotation renders as a tuple.
-    assert!(
-        rendered.contains("( Float, Float )") || rendered.contains("(Float, Float)"),
-        "expected 2-tuple type annotation:\n{rendered}",
-    );
+    check!(
+        rendered.contains("( Float, Float )") || rendered.contains("(Float, Float)")
+    )
+    .satisfies(is_true())
+    .context(format!("expected 2-tuple type annotation:\n{rendered}"))?;
 
     // Decoder uses Decode.map2/map3 with positional Decode.index.
-    assert!(
-        rendered.contains("Decode.map2"),
-        "decoder should use Decode.map2 for 2-tuple:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.map3"),
-        "decoder should use Decode.map3 for 3-tuple:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.index 0"),
-        "decoder should index 0:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.index 1"),
-        "decoder should index 1:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Decode.index 2"),
-        "decoder should index 2 for 3-tuple:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.map2"))
+        .context(format!("decoder should use Decode.map2 for 2-tuple:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.map3"))
+        .context(format!("decoder should use Decode.map3 for 3-tuple:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.index 0"))
+        .context(format!("decoder should index 0:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.index 1"))
+        .context(format!("decoder should index 1:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.index 2"))
+        .context(format!("decoder should index 2 for 3-tuple:\n{rendered}"))?;
 
     // Encoder destructures tuple via lambda pattern and emits Encode.list with identity.
-    assert!(
-        rendered.contains("Encode.list"),
-        "encoder should use Encode.list for tuple:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("identity"),
-        "encoder should pass identity as the per-element encoder:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("\\( a, b )") || rendered.contains("\\(a, b)"),
-        "encoder should destructure 2-tuple in lambda:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Encode.list"))
+        .context(format!("encoder should use Encode.list for tuple:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("identity"))
+        .context(format!("encoder should pass identity as the per-element encoder:\n{rendered}"))?;
+    check!(
+        rendered.contains("\\( a, b )") || rendered.contains("\\(a, b)")
+    )
+    .satisfies(is_true())
+    .context(format!("encoder should destructure 2-tuple in lambda:\n{rendered}"))?;
+    Ok(())
 }
 
 // ── Chrono naive types ──────────────────────────────────────────────
@@ -681,7 +646,7 @@ pub struct WhenApi {
 }
 
 #[test]
-fn chrono_naive_types_map_to_iso_date_and_string() {
+fn chrono_naive_types_map_to_iso_date_and_string() -> TestResult {
     use elm_client_gen_core::ElmTypeRepr;
     let info = WhenApi::elm_type_info();
     let by_name: std::collections::HashMap<_, _> = info
@@ -689,22 +654,26 @@ fn chrono_naive_types_map_to_iso_date_and_string() {
         .iter()
         .map(|f| (f.elm_name, &f.elm_type))
         .collect();
-    assert!(matches!(
-        by_name.get("day").expect("day field"),
+    check!(matches!(
+        by_name.get("day").or_fail_with("day field")?,
         ElmTypeRepr::IsoDate
-    ));
-    assert!(matches!(
-        by_name.get("stamp").expect("stamp field"),
+    ))
+    .satisfies(is_true())?;
+    check!(matches!(
+        by_name.get("stamp").or_fail_with("stamp field")?,
         ElmTypeRepr::String
-    ));
-    assert!(matches!(
-        by_name.get("clock").expect("clock field"),
+    ))
+    .satisfies(is_true())?;
+    check!(matches!(
+        by_name.get("clock").or_fail_with("clock field")?,
         ElmTypeRepr::String
-    ));
+    ))
+    .satisfies(is_true())?;
+    Ok(())
 }
 
 #[test]
-fn build_merged_module_renders_expected_elm() {
+fn build_merged_module_renders_expected_elm() -> TestResult {
     let types: Vec<ElmTypeInfo> =
         vec![PersonApi::elm_type_info(), PersonFilterApi::elm_type_info()];
     let names = NameMap::from_types(&types);
@@ -712,19 +681,20 @@ fn build_merged_module_renders_expected_elm() {
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
 
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
-    assert!(rendered.contains("module Api.Person exposing"));
-    assert!(rendered.contains("type alias Person ="));
-    assert!(rendered.contains("type alias PersonFilter ="));
-    assert!(rendered.contains("personDecoder"));
-    assert!(rendered.contains("encodePerson"));
-    assert!(rendered.contains("import Json.Decode as Decode"));
-    assert!(rendered.contains("import Json.Encode.Extra exposing (maybe)"));
-    assert!(rendered.contains("nickname : Maybe String"));
+    check!(rendered.as_str()).satisfies(contains_str("module Api.Person exposing"))?;
+    check!(rendered.as_str()).satisfies(contains_str("type alias Person ="))?;
+    check!(rendered.as_str()).satisfies(contains_str("type alias PersonFilter ="))?;
+    check!(rendered.as_str()).satisfies(contains_str("personDecoder"))?;
+    check!(rendered.as_str()).satisfies(contains_str("encodePerson"))?;
+    check!(rendered.as_str()).satisfies(contains_str("import Json.Decode as Decode"))?;
+    check!(rendered.as_str()).satisfies(contains_str("import Json.Encode.Extra exposing (maybe)"))?;
+    check!(rendered.as_str()).satisfies(contains_str("nickname : Maybe String"))?;
+    Ok(())
 }
 
 // ── mergeTaggedObject helper emission ───────────────────────────────
@@ -754,7 +724,7 @@ pub enum MergeActionApi {
 }
 
 #[test]
-fn merge_tagged_object_helper_emitted_for_internally_tagged_newtype_struct() {
+fn merge_tagged_object_helper_emitted_for_internally_tagged_newtype_struct() -> TestResult {
     let types: Vec<ElmTypeInfo> = vec![
         MergeAddressApi::elm_type_info(),
         MergeActionApi::elm_type_info(),
@@ -764,48 +734,46 @@ fn merge_tagged_object_helper_emitted_for_internally_tagged_newtype_struct() {
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
     // Helper is declared in the module.
-    assert!(
-        rendered.contains("mergeTaggedObject :"),
-        "expected mergeTaggedObject type annotation in module:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("mergeTaggedObject tagKey tagValue inner"),
-        "expected mergeTaggedObject implementation:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("mergeTaggedObject :"))
+        .context(format!("expected mergeTaggedObject type annotation in module:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("mergeTaggedObject tagKey tagValue inner"))
+        .context(format!("expected mergeTaggedObject implementation:\n{rendered}"))?;
     // Helper body uses Decode.keyValuePairs and Encode.object to flatten.
-    assert!(
-        rendered.contains("Decode.keyValuePairs"),
-        "mergeTaggedObject should decode inner as keyValuePairs:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("Encode.object"),
-        "mergeTaggedObject should rebuild via Encode.object:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("Decode.keyValuePairs"))
+        .context(format!("mergeTaggedObject should decode inner as keyValuePairs:\n{rendered}"))?;
+    check!(rendered.as_str())
+        .satisfies(contains_str("Encode.object"))
+        .context(format!("mergeTaggedObject should rebuild via Encode.object:\n{rendered}"))?;
 
     // Variant encoder for UpdateAddress binds the inner payload and calls
     // the helper with the tag key, variant name, and the inner encoded value.
-    assert!(
-        rendered.contains("UpdateAddress inner"),
-        "UpdateAddress branch should bind inner:\n{rendered}",
-    );
-    assert!(
+    check!(rendered.as_str())
+        .satisfies(contains_str("UpdateAddress inner"))
+        .context(format!("UpdateAddress branch should bind inner:\n{rendered}"))?;
+    check!(
         rendered.contains("mergeTaggedObject \"action\" \"UpdateAddress\"")
-            || rendered.contains("mergeTaggedObject \"action\" \"UpdateAddress\" ("),
-        "UpdateAddress branch should call mergeTaggedObject with action/UpdateAddress:\n{rendered}",
-    );
-    assert!(
-        rendered.contains("encodeAddressApi inner") || rendered.contains("encodeAddressApi"),
-        "UpdateAddress branch should invoke the inner type's encoder:\n{rendered}",
-    );
+            || rendered.contains("mergeTaggedObject \"action\" \"UpdateAddress\" (")
+    )
+    .satisfies(is_true())
+    .context(format!("UpdateAddress branch should call mergeTaggedObject with action/UpdateAddress:\n{rendered}"))?;
+    check!(
+        rendered.contains("encodeAddressApi inner") || rendered.contains("encodeAddressApi")
+    )
+    .satisfies(is_true())
+    .context(format!("UpdateAddress branch should invoke the inner type's encoder:\n{rendered}"))?;
+    Ok(())
 }
 
 #[test]
-fn merge_tagged_object_helper_not_emitted_when_unused() {
+fn merge_tagged_object_helper_not_emitted_when_unused() -> TestResult {
     // Internally-tagged enum with only unit and struct variants (no
     // newtype variant) should NOT pull in the mergeTaggedObject helper.
     let types: Vec<ElmTypeInfo> = vec![UserEmailAddressApi::elm_type_info()];
@@ -814,14 +782,14 @@ fn merge_tagged_object_helper_not_emitted_when_unused() {
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
 
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups.into_iter().next().or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
     let rendered = elm_ast::pretty_print(&module);
 
-    assert!(
-        !rendered.contains("mergeTaggedObject"),
-        "helper should not be emitted when no variant needs it:\n{rendered}",
-    );
+    check!(rendered.contains("mergeTaggedObject"))
+        .satisfies(is_false())
+        .context(format!("helper should not be emitted when no variant needs it:\n{rendered}"))?;
+    Ok(())
 }
 
 // ── App type + decoder_step / encoder_pairs (0.3.0) ─────────────────
@@ -874,79 +842,79 @@ fn render_with_patch_module(types: Vec<ElmTypeInfo>) -> String {
 }
 
 #[test]
-fn app_type_repr_carries_head_and_args() {
+fn app_type_repr_carries_head_and_args() -> TestResult {
     use elm_client_gen_core::ElmTypeRepr;
     let info = ProfilePatchApi::elm_type_info();
     let display = info
         .fields()
         .iter()
         .find(|f| f.elm_name == "displayName")
-        .expect("displayName field");
+        .or_fail_with("displayName field")?;
     match &display.elm_type {
         ElmTypeRepr::App { head, args } => {
-            assert_eq!(head, "Patch");
-            assert_eq!(args.len(), 1);
-            assert!(matches!(args[0], ElmTypeRepr::String));
+            check!(head.as_str()).satisfies(eq("Patch"))?;
+            check!(args.len()).satisfies(eq(1))?;
+            check!(matches!(args[0], ElmTypeRepr::String)).satisfies(is_true())?;
         }
-        other => panic!("expected App {{ head: Patch, args: [String] }}, got {other:?}"),
+        other => return Err(fail(format!("expected App {{ head: Patch, args: [String] }}, got {other:?}"))),
     }
-    assert_eq!(display.decoder_step, Some("patch"));
-    assert_eq!(display.encoder_pairs, Some("patchPair"));
+    check!(display.decoder_step).satisfies(eq(Some("patch")))?;
+    check!(display.encoder_pairs).satisfies(eq(Some("patchPair")))?;
+    Ok(())
 }
 
 #[test]
-fn app_type_renders_head_with_arg_in_field_annotation() {
+fn app_type_renders_head_with_arg_in_field_annotation() -> TestResult {
     let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
     // The displayName field is annotated as `Patch String`, not as a
     // bare `Patch` ident or as `String`.
-    assert!(
-        rendered.contains("displayName : Patch String"),
-        "expected `displayName : Patch String` annotation:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str("displayName : Patch String"))
+        .context(format!("expected `displayName : Patch String` annotation:\n{rendered}"))?;
+    Ok(())
 }
 
 #[test]
-fn decoder_step_emits_pipeline_step_combinator() {
+fn decoder_step_emits_pipeline_step_combinator() -> TestResult {
     let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
     // `decoder_step = "patch"` overrides the default `required` /
     // `optional` step. The rust_name is the JSON key (camelCase here
     // because of `serde(rename_all = "camelCase")`) and the inner
     // decoder is built from the App's first arg (`String`).
-    assert!(
-        rendered.contains(r#"|> patch "displayName" Decode.string"#),
-        "expected pipeline step `|> patch \"displayName\" Decode.string`:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"|> patch "displayName" Decode.string"#))
+        .context(format!("expected pipeline step `|> patch \"displayName\" Decode.string`:\n{rendered}"))?;
     // It must NOT fall back to `required "displayName" patchDecoder`.
-    assert!(
-        !rendered.contains(r#"|> required "displayName""#),
-        "decoder_step should preempt `required`:\n{rendered}",
-    );
+    check!(rendered.contains(r#"|> required "displayName""#))
+        .satisfies(is_false())
+        .context(format!("decoder_step should preempt `required`:\n{rendered}"))?;
+    Ok(())
 }
 
 #[test]
-fn encoder_pairs_wraps_body_in_list_concat() {
+fn encoder_pairs_wraps_body_in_list_concat() -> TestResult {
     let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
     // Any field with `encoder_pairs` flips the whole record encoder
     // body to `Encode.object (List.concat [ ... ])`.
-    assert!(
-        rendered.contains("Encode.object") && rendered.contains("List.concat"),
-        "expected `Encode.object (List.concat [...])` body:\n{rendered}",
-    );
+    check!(rendered.contains("Encode.object") && rendered.contains("List.concat"))
+        .satisfies(is_true())
+        .context(format!("expected `Encode.object (List.concat [...])` body:\n{rendered}"))?;
     // The pairs field uses the helper directly with no list wrapper.
-    assert!(
-        rendered.contains(r#"patchPair "displayName" Encode.string value.displayName"#),
-        "expected pairs helper call:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"patchPair "displayName" Encode.string value.displayName"#))
+        .context(format!("expected pairs helper call:\n{rendered}"))?;
     // Plain fields are wrapped in a singleton list inside the concat.
-    assert!(
+    check!(
         rendered.contains(r#"[ ( "version", Encode.int value.version ) ]"#)
-            || rendered.contains(r#"[("version", Encode.int value.version)]"#),
-        "expected plain field wrapped as singleton pair list:\n{rendered}",
-    );
+            || rendered.contains(r#"[("version", Encode.int value.version)]"#)
+    )
+    .satisfies(is_true())
+    .context(format!("expected plain field wrapped as singleton pair list:\n{rendered}"))?;
+    Ok(())
 }
 
 #[test]
-fn app_type_imports_head_via_register_with_exposed() {
+fn app_type_imports_head_via_register_with_exposed() -> TestResult {
     let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
     // The Patch wrapper is registered with an explicit exposing list,
     // so the import line uses it verbatim instead of the auto-derived
@@ -954,19 +922,17 @@ fn app_type_imports_head_via_register_with_exposed() {
     let import = rendered
         .lines()
         .find(|l| l.contains("import Api.Patch"))
-        .unwrap_or_else(|| panic!("expected `import Api.Patch ...` line:\n{rendered}"));
-    assert!(
-        import.contains("Patch"),
-        "import should expose Patch type:\n{import}",
-    );
-    assert!(
-        import.contains("patch"),
-        "import should expose patch combinator:\n{import}",
-    );
-    assert!(
-        import.contains("patchPair"),
-        "import should expose patchPair helper:\n{import}",
-    );
+        .ok_or_else(|| fail(format!("expected `import Api.Patch ...` line:\n{rendered}")))?;
+    check!(import.contains("Patch"))
+        .satisfies(is_true())
+        .context(format!("import should expose Patch type:\n{import}"))?;
+    check!(import.contains("patch"))
+        .satisfies(is_true())
+        .context(format!("import should expose patch combinator:\n{import}"))?;
+    check!(import.contains("patchPair"))
+        .satisfies(is_true())
+        .context(format!("import should expose patchPair helper:\n{import}"))?;
+    Ok(())
 }
 
 // ── Precedence: step/pairs win over decoder/encoder ─────────────────
@@ -1012,7 +978,7 @@ fn render_record_with_fields(fields: Vec<elm_client_gen_core::ElmFieldInfo>) -> 
 }
 
 #[test]
-fn decoder_step_wins_over_custom_decoder_when_both_set() {
+fn decoder_step_wins_over_custom_decoder_when_both_set() -> TestResult {
     let rendered = render_record_with_fields(vec![patch_field(
         "name",
         Some("loserDecoder"),
@@ -1020,18 +986,17 @@ fn decoder_step_wins_over_custom_decoder_when_both_set() {
         None,
         None,
     )]);
-    assert!(
-        rendered.contains(r#"|> patch "name" Decode.string"#),
-        "decoder_step should be emitted:\n{rendered}",
-    );
-    assert!(
-        !rendered.contains("loserDecoder"),
-        "custom_decoder should be dropped when decoder_step is set:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"|> patch "name" Decode.string"#))
+        .context(format!("decoder_step should be emitted:\n{rendered}"))?;
+    check!(rendered.contains("loserDecoder"))
+        .satisfies(is_false())
+        .context(format!("custom_decoder should be dropped when decoder_step is set:\n{rendered}"))?;
+    Ok(())
 }
 
 #[test]
-fn encoder_pairs_wins_over_custom_encoder_when_both_set() {
+fn encoder_pairs_wins_over_custom_encoder_when_both_set() -> TestResult {
     let rendered = render_record_with_fields(vec![patch_field(
         "name",
         None,
@@ -1039,14 +1004,13 @@ fn encoder_pairs_wins_over_custom_encoder_when_both_set() {
         Some("loserEncoder"),
         Some("patchPair"),
     )]);
-    assert!(
-        rendered.contains(r#"patchPair "name" Encode.string value.name"#),
-        "encoder_pairs should be emitted:\n{rendered}",
-    );
-    assert!(
-        !rendered.contains("loserEncoder"),
-        "custom_encoder should be dropped when encoder_pairs is set:\n{rendered}",
-    );
+    check!(rendered.as_str())
+        .satisfies(contains_str(r#"patchPair "name" Encode.string value.name"#))
+        .context(format!("encoder_pairs should be emitted:\n{rendered}"))?;
+    check!(rendered.contains("loserEncoder"))
+        .satisfies(is_false())
+        .context(format!("custom_encoder should be dropped when encoder_pairs is set:\n{rendered}"))?;
+    Ok(())
 }
 
 // ── Multiple types collapse into a single import per Elm module ─────
@@ -1078,14 +1042,14 @@ pub struct MultiPatchRightApi {
 }
 
 #[test]
-fn multiple_app_fields_emit_a_single_import_for_the_wrapper_module() {
+fn multiple_app_fields_emit_a_single_import_for_the_wrapper_module() -> TestResult {
     let rendered = render_with_patch_module(vec![
         MultiPatchLeftApi::elm_type_info(),
         MultiPatchRightApi::elm_type_info(),
     ]);
     let count = rendered.matches("import Api.Patch").count();
-    assert_eq!(
-        count, 1,
-        "expected exactly one `import Api.Patch ...` line, got {count}:\n{rendered}",
-    );
+    check!(count)
+        .satisfies(eq(1))
+        .context(format!("expected exactly one `import Api.Patch ...` line, got {count}:\n{rendered}"))?;
+    Ok(())
 }
