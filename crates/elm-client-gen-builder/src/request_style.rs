@@ -121,9 +121,17 @@ fn build_response_handling(
 ) -> ResponseHandling {
     match endpoint.success_kind {
         ResponseKind::Json => {
-            let success_repr = endpoint
-                .success
-                .expect("ResponseKind::Json requires a success type");
+            let Some(success_repr) = endpoint.success else {
+                // Should never happen: ResponseInfo helpers always pair
+                // ResponseKind::Json with Some(success). Fall back to
+                // Empty-style handling so a malformed input degrades
+                // instead of panicking.
+                let expect_expr = app(qualified(&["Http"], "expectWhatever"), vec![field("toMsg")]);
+                return ResponseHandling {
+                    expect_expr,
+                    success_type: None,
+                };
+            };
             // Walk the repr for every `Custom(name)` it references and
             // import its type alias plus per-type decoder. Wrapper kinds
             // (Maybe/List/Dict/Tuple) don't contribute a name themselves
@@ -492,22 +500,27 @@ fn build_url(segments: &[PathSegment<'_>]) -> Spanned<Expr> {
     // since `++` in Elm is `infixr 5`. Pin each chunk to a distinct
     // line so the printer breaks long URL chains across lines instead
     // of running them all together.
-    let mut all = vec![field("baseUrl")];
-    all.extend(chunks);
-    for (i, c) in all.iter_mut().enumerate() {
+    let pin_line = |mut expr: Spanned<Expr>, line: u32| {
         let pos = elm_ast::span::Position {
             offset: 0,
-            line: (i + 1) as u32,
+            line,
             column: 1,
         };
-        c.span = Span::new(pos, pos);
+        expr.span = Span::new(pos, pos);
+        expr
+    };
+    let base = pin_line(field("baseUrl"), 1);
+    let chunks_positioned = chunks
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| pin_line(c, (i + 2) as u32));
+    match chunks_positioned
+        .rev()
+        .reduce(|right, left| concat(left, right))
+    {
+        Some(rest) => concat(base, rest),
+        None => base,
     }
-    let mut iter = all.into_iter().rev();
-    let mut acc = iter.next().expect("at least baseUrl");
-    for left in iter {
-        acc = concat(left, acc);
-    }
-    acc
 }
 
 /// Wrap a path-param accessor so it concatenates as `String`. Strings

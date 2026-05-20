@@ -495,6 +495,7 @@ fn collect_pipeline_flags(info: &ElmTypeInfo, uses_required: &mut bool, uses_opt
 mod tests {
     use super::*;
     use elm_client_gen_http::{HttpMethod, ResponseInfo, ResponseKind};
+    use test_better::prelude::*;
 
     fn endpoint(
         elm_function_name: &'static str,
@@ -560,21 +561,21 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_import_exposes_only_required_when_no_optional_fields() {
+    fn pipeline_import_exposes_only_required_when_no_optional_fields() -> TestResult {
         let info = record(vec![
             field("id", ElmTypeRepr::String, false),
             field("name", ElmTypeRepr::String, false),
         ]);
-        let line = render_pipeline_line(info).expect("pipeline import present");
-        assert!(
-            line.contains("exposing (required)"),
-            "expected `exposing (required)` only, got: {line}"
-        );
-        assert!(!line.contains("optional"));
+        let line = render_pipeline_line(info).or_fail_with("pipeline import present")?;
+        check!(line.contains("exposing (required)"))
+            .satisfies(is_true())
+            .context(format!("expected `exposing (required)` only, got: {line}"))?;
+        check!(line.contains("optional")).satisfies(is_false())?;
+        Ok(())
     }
 
     #[test]
-    fn pipeline_import_exposes_both_when_any_optional_field() {
+    fn pipeline_import_exposes_both_when_any_optional_field() -> TestResult {
         let info = record(vec![
             field("id", ElmTypeRepr::String, false),
             field(
@@ -583,24 +584,29 @@ mod tests {
                 true,
             ),
         ]);
-        let line = render_pipeline_line(info).expect("pipeline import present");
-        assert!(line.contains("required"), "{line}");
-        assert!(line.contains("optional"), "{line}");
+        let line = render_pipeline_line(info).or_fail_with("pipeline import present")?;
+        check!(line.contains("required"))
+            .satisfies(is_true())
+            .context(line.clone())?;
+        check!(line.contains("optional"))
+            .satisfies(is_true())
+            .context(line)?;
+        Ok(())
     }
 
     #[test]
-    fn pipeline_import_exposes_only_optional_when_all_fields_optional() {
+    fn pipeline_import_exposes_only_optional_when_all_fields_optional() -> TestResult {
         let info = record(vec![field(
             "nickname",
             ElmTypeRepr::Maybe(Box::new(ElmTypeRepr::String)),
             true,
         )]);
-        let line = render_pipeline_line(info).expect("pipeline import present");
-        assert!(
-            line.contains("exposing (optional)"),
-            "expected `exposing (optional)` only, got: {line}"
-        );
-        assert!(!line.contains("required"));
+        let line = render_pipeline_line(info).or_fail_with("pipeline import present")?;
+        check!(line.contains("exposing (optional)"))
+            .satisfies(is_true())
+            .context(format!("expected `exposing (optional)` only, got: {line}"))?;
+        check!(line.contains("required")).satisfies(is_false())?;
+        Ok(())
     }
 
     #[test]
@@ -689,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn imports_use_exposed_overrides_when_set() {
+    fn imports_use_exposed_overrides_when_set() -> TestResult {
         let types = vec![record_with_app_field("Patch", ElmTypeRepr::String)];
         let mut names = NameMap::from_types(&types);
         names.register_with_exposed(
@@ -702,24 +708,24 @@ mod tests {
         let import = rendered
             .lines()
             .find(|l| l.contains("import Api.Patch"))
-            .unwrap_or_else(|| panic!("expected `import Api.Patch ...`:\n{rendered}"));
-        assert!(import.contains("Patch"), "{import}");
-        assert!(import.contains("patch"), "{import}");
-        assert!(import.contains("patchPair"), "{import}");
+            .or_fail_with(format!("expected `import Api.Patch ...`:\n{rendered}"))?
+            .to_string();
+        check!(import.contains("Patch")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("patch")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("patchPair")).satisfies(is_true()).context(import.clone())?;
         // Auto-derived names that the override list doesn't include
         // must NOT leak through.
-        assert!(
-            !import.contains("patchDecoder"),
-            "auto-derived patchDecoder should not appear when overrides are set:\n{import}",
-        );
-        assert!(
-            !import.contains("encodePatch"),
-            "auto-derived encodePatch should not appear when overrides are set:\n{import}",
-        );
+        check!(import.contains("patchDecoder"))
+            .satisfies(is_false())
+            .context(format!("auto-derived patchDecoder should not appear when overrides are set:\n{import}"))?;
+        check!(import.contains("encodePatch"))
+            .satisfies(is_false())
+            .context(format!("auto-derived encodePatch should not appear when overrides are set:\n{import}"))?;
+        Ok(())
     }
 
     #[test]
-    fn imports_fall_back_to_auto_names_without_overrides() {
+    fn imports_fall_back_to_auto_names_without_overrides() -> TestResult {
         // Without `exposed_overrides`, the import exposes the
         // auto-derived triple `<elm_name>`, `<elm_name>Decoder`,
         // `encode<elm_name>` (the last only if the module emits any
@@ -731,10 +737,12 @@ mod tests {
         let import = rendered
             .lines()
             .find(|l| l.contains("import Api.Wrap"))
-            .unwrap_or_else(|| panic!("expected `import Api.Wrap ...`:\n{rendered}"));
-        assert!(import.contains("Wrap"), "{import}");
-        assert!(import.contains("wrapDecoder"), "{import}");
-        assert!(import.contains("encodeWrap"), "{import}");
+            .or_fail_with(format!("expected `import Api.Wrap ...`:\n{rendered}"))?
+            .to_string();
+        check!(import.contains("Wrap")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("wrapDecoder")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("encodeWrap")).satisfies(is_true()).context(import)?;
+        Ok(())
     }
 
     #[test]
@@ -757,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn imports_collapse_multiple_app_refs_into_one_per_module() {
+    fn imports_collapse_multiple_app_refs_into_one_per_module() -> TestResult {
         // Two fields, each referencing a different wrapper type that
         // happen to live in the *same* Elm module. They must merge
         // into a single import with a unioned exposing list.
@@ -804,22 +812,23 @@ mod tests {
         let rendered = render_with(types, names);
         let count = rendered.matches("import Api.Patch ").count()
             + rendered.matches("import Api.Patch\n").count();
-        assert_eq!(
-            count, 1,
-            "expected exactly one `import Api.Patch ...`:\n{rendered}",
-        );
+        check!(count)
+            .satisfies(eq(1))
+            .context(format!("expected exactly one `import Api.Patch ...`:\n{rendered}"))?;
         let import = rendered
             .lines()
             .find(|l| l.contains("import Api.Patch"))
-            .expect("import line");
-        assert!(import.contains("Patch"), "{import}");
-        assert!(import.contains("patch"), "{import}");
-        assert!(import.contains("PatchNullable"), "{import}");
-        assert!(import.contains("patchNullable"), "{import}");
+            .or_fail_with("import line")?
+            .to_string();
+        check!(import.contains("Patch")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("patch")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("PatchNullable")).satisfies(is_true()).context(import.clone())?;
+        check!(import.contains("patchNullable")).satisfies(is_true()).context(import)?;
+        Ok(())
     }
 
     #[test]
-    fn group_endpoints_by_module_partitions_and_sorts_alphabetically() {
+    fn group_endpoints_by_module_partitions_and_sorts_alphabetically() -> TestResult {
         let endpoints = vec![
             endpoint("updateDashboard", &["Api", "Generated", "Dashboard"]),
             endpoint("listPeople", &["Api", "Generated", "People"]),
@@ -830,23 +839,24 @@ mod tests {
         let groups = group_endpoints_by_module(&endpoints);
         let dashboard = groups
             .get(&vec!["Api", "Generated", "Dashboard"])
-            .expect("dashboard group");
+            .or_fail_with("dashboard group")?;
         let people = groups
             .get(&vec!["Api", "Generated", "People"])
-            .expect("people group");
-        assert_eq!(
-            dashboard
-                .iter()
-                .map(|e| e.elm_function_name)
-                .collect::<Vec<_>>(),
-            vec!["createDashboard", "deleteDashboard", "updateDashboard"],
-        );
-        assert_eq!(
-            people
-                .iter()
-                .map(|e| e.elm_function_name)
-                .collect::<Vec<_>>(),
-            vec!["createPerson", "listPeople"],
-        );
+            .or_fail_with("people group")?;
+        check!(dashboard
+            .iter()
+            .map(|e| e.elm_function_name)
+            .collect::<Vec<_>>())
+            .satisfies(eq(vec![
+                "createDashboard",
+                "deleteDashboard",
+                "updateDashboard",
+            ]))?;
+        check!(people
+            .iter()
+            .map(|e| e.elm_function_name)
+            .collect::<Vec<_>>())
+            .satisfies(eq(vec!["createPerson", "listPeople"]))?;
+        Ok(())
     }
 }

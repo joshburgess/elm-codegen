@@ -110,7 +110,12 @@ fn impl_elm_type(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 // codec. Multi-field tuple structs (`struct Pair(A, B)`)
                 // have no obvious JSON shape and are still rejected
                 // below.
-                let only = unnamed.unnamed.first().expect("len == 1 was checked");
+                let Some(only) = unnamed.unnamed.first() else {
+                    return Err(syn::Error::new_spanned(
+                        name,
+                        "single-field tuple struct unexpectedly had no fields",
+                    ));
+                };
                 let (inner_tokens, _) = rust_type_to_elm_repr(&only.ty)?;
                 quote! {
                     elm_client_gen_core::ElmTypeKind::Newtype {
@@ -390,10 +395,12 @@ fn build_enum_kind(
                 // EnumRepr::InternallyTagged (inner fields flattened next
                 // to the tag). Multi-field tuple variants are rejected
                 // earlier for both representations.
-                let only = unnamed
-                    .unnamed
-                    .first()
-                    .expect("newtype variant must have one field");
+                let Some(only) = unnamed.unnamed.first() else {
+                    return Err(syn::Error::new_spanned(
+                        variant,
+                        "newtype variant unexpectedly had no fields",
+                    ));
+                };
                 let (inner_tokens, _is_optional) = rust_type_to_elm_repr(&only.ty)?;
                 quote! { elm_client_gen_core::ElmVariantPayload::Newtype(#inner_tokens) }
             }

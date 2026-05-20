@@ -444,6 +444,7 @@ impl_axum_extra_query!(axum_extra_010_impls, axum_extra_010);
 mod tests {
     use super::*;
     use elm_client_gen_core::ElmType;
+    use test_better::prelude::*;
 
     #[derive(ElmType)]
     #[elm(module = "Api.Filters", name = "PersonFilters")]
@@ -454,49 +455,50 @@ mod tests {
     }
 
     #[test]
-    fn elm_scalar_primitives_map_correctly() {
-        assert_eq!(
-            <String as ElmScalar>::elm_scalar_type(),
-            ElmTypeRepr::String
-        );
-        assert_eq!(<i32 as ElmScalar>::elm_scalar_type(), ElmTypeRepr::Int);
-        assert_eq!(<u64 as ElmScalar>::elm_scalar_type(), ElmTypeRepr::Int);
-        assert_eq!(<f32 as ElmScalar>::elm_scalar_type(), ElmTypeRepr::Float);
-        assert_eq!(<bool as ElmScalar>::elm_scalar_type(), ElmTypeRepr::Bool);
+    fn elm_scalar_primitives_map_correctly() -> TestResult {
+        check!(<String as ElmScalar>::elm_scalar_type()).satisfies(eq(ElmTypeRepr::String))?;
+        check!(<i32 as ElmScalar>::elm_scalar_type()).satisfies(eq(ElmTypeRepr::Int))?;
+        check!(<u64 as ElmScalar>::elm_scalar_type()).satisfies(eq(ElmTypeRepr::Int))?;
+        check!(<f32 as ElmScalar>::elm_scalar_type()).satisfies(eq(ElmTypeRepr::Float))?;
+        check!(<bool as ElmScalar>::elm_scalar_type()).satisfies(eq(ElmTypeRepr::Bool))?;
+        Ok(())
     }
 
     #[test]
-    fn path_params_single_scalar_has_empty_name() {
+    fn path_params_single_scalar_has_empty_name() -> TestResult {
         let params = <String as ElmPathParams>::path_params();
-        assert_eq!(params.len(), 1);
-        let first = params.first().expect("one path param");
-        assert_eq!(first.name, "");
-        assert_eq!(first.ty, ElmTypeRepr::String);
+        check!(params.len()).satisfies(eq(1))?;
+        let first = params.first().or_fail_with("one path param")?;
+        check!(first.name).satisfies(eq(""))?;
+        check!(first.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
+        Ok(())
     }
 
     #[test]
-    fn path_params_tuple_lists_each_element_in_order() {
+    fn path_params_tuple_lists_each_element_in_order() -> TestResult {
         let params = <(String, i32) as ElmPathParams>::path_params();
-        assert_eq!(params.len(), 2);
-        let first = params.first().expect("first path param");
-        let second = params.get(1).expect("second path param");
-        assert_eq!(first.ty, ElmTypeRepr::String);
-        assert_eq!(second.ty, ElmTypeRepr::Int);
-        assert!(params.iter().all(|p| p.name.is_empty()));
+        check!(params.len()).satisfies(eq(2))?;
+        let first = params.first().or_fail_with("first path param")?;
+        let second = params.get(1).or_fail_with("second path param")?;
+        check!(first.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
+        check!(second.ty.clone()).satisfies(eq(ElmTypeRepr::Int))?;
+        check!(params.iter().all(|p| p.name.is_empty())).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn query_struct_blanket_impl_uses_field_metadata() {
+    fn query_struct_blanket_impl_uses_field_metadata() -> TestResult {
         let params = <PersonFilters as ElmQueryStruct>::query_params();
         let by_name: std::collections::HashMap<_, _> = params.iter().map(|p| (p.name, p)).collect();
 
-        let name = by_name.get("name").expect("name param missing");
-        assert_eq!(name.ty, ElmTypeRepr::String);
-        assert!(!name.required);
+        let name = by_name.get("name").or_fail_with("name param missing")?;
+        check!(name.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
+        check!(name.required).satisfies(is_false())?;
 
-        let active = by_name.get("active").expect("active param missing");
-        assert_eq!(active.ty, ElmTypeRepr::Bool);
-        assert!(active.required);
+        let active = by_name.get("active").or_fail_with("active param missing")?;
+        check!(active.ty.clone()).satisfies(eq(ElmTypeRepr::Bool))?;
+        check!(active.required).satisfies(is_true())?;
+        Ok(())
     }
 }
 
@@ -511,6 +513,8 @@ mod tests {
 mod axum_tests {
     use super::*;
     use elm_client_gen_core::ElmType;
+    use test_better::ErrorKind;
+    use test_better::prelude::*;
 
     #[cfg(feature = "axum-0-6")]
     use axum_06 as axum;
@@ -575,22 +579,20 @@ mod axum_tests {
     }
 
     #[test]
-    fn path_extractor_delegates_to_elm_path_params() {
+    fn path_extractor_delegates_to_elm_path_params() -> TestResult {
         let info = <axum::extract::Path<(String, String)> as ElmExtractor>::elm_extractor_info();
         match info {
             ExtractorInfo::PathParams(params) => {
-                assert_eq!(params.len(), 2);
-                assert_eq!(
-                    params.first().expect("first path param").ty,
-                    ElmTypeRepr::String
-                );
-                assert_eq!(
-                    params.get(1).expect("second path param").ty,
-                    ElmTypeRepr::String
-                );
+                check!(params.len()).satisfies(eq(2))?;
+                let first = params.first().or_fail_with("first path param")?;
+                let second = params.get(1).or_fail_with("second path param")?;
+                check!(first.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
+                check!(second.ty.clone()).satisfies(eq(ElmTypeRepr::String))?;
             }
-            other => panic!("expected PathParams, got {:?}", other),
+            other => return Err(TestError::new(ErrorKind::Assertion)
+                .with_message(format!("expected PathParams, got {:?}", other))),
         }
+        Ok(())
     }
 
     #[test]

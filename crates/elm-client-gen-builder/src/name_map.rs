@@ -112,6 +112,7 @@ impl NameMap {
 mod tests {
     use super::*;
     use elm_client_gen_core::{ElmTypeInfo, ElmTypeKind};
+    use test_better::prelude::*;
 
     fn record(
         rust_name: &'static str,
@@ -127,47 +128,58 @@ mod tests {
         }
     }
 
+    fn module_path_strs(path: &[String]) -> Vec<&str> {
+        path.iter().map(String::as_str).collect()
+    }
+
     #[test]
-    fn from_types_builds_entry_per_type() {
+    fn from_types_builds_entry_per_type() -> TestResult {
         let types = vec![
             record("PersonApi", "Person", vec!["Api", "Person"]),
             record("OrderApi", "Order", vec!["Api", "Order"]),
         ];
         let map = NameMap::from_types(&types);
-        let p = map.lookup("PersonApi").expect("Person entry");
-        assert_eq!(p.elm_name, "Person");
-        assert_eq!(p.module_path, vec!["Api", "Person"]);
-        assert_eq!(map.resolve("OrderApi"), "Order");
+        let p = map.lookup("PersonApi").or_fail_with("Person entry")?;
+        check!(p.elm_name.as_str()).satisfies(eq("Person"))?;
+        check!(module_path_strs(&p.module_path).as_slice())
+            .satisfies(eq(["Api", "Person"].as_slice()))?;
+        check!(map.resolve("OrderApi")).satisfies(eq("Order"))?;
+        Ok(())
     }
 
     #[test]
-    fn resolve_falls_back_to_input_on_miss() {
+    fn resolve_falls_back_to_input_on_miss() -> TestResult {
         let map = NameMap::from_types(&[]);
-        assert_eq!(map.resolve("Unknown"), "Unknown");
-        assert!(map.lookup("Unknown").is_none());
+        check!(map.resolve("Unknown")).satisfies(eq("Unknown"))?;
+        check!(map.lookup("Unknown").is_none()).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn register_adds_hand_written_entries() {
+    fn register_adds_hand_written_entries() -> TestResult {
         let mut map = NameMap::from_types(&[]);
         map.register("Money", "Money", vec!["Api".into(), "Money".into()]);
-        let e = map.lookup("Money").expect("registered Money entry");
-        assert_eq!(e.elm_name, "Money");
-        assert_eq!(e.module_path, vec!["Api", "Money"]);
+        let e = map.lookup("Money").or_fail_with("registered Money entry")?;
+        check!(e.elm_name.as_str()).satisfies(eq("Money"))?;
+        check!(module_path_strs(&e.module_path).as_slice())
+            .satisfies(eq(["Api", "Money"].as_slice()))?;
+        Ok(())
     }
 
     #[test]
-    fn register_overwrites_existing_entry() {
+    fn register_overwrites_existing_entry() -> TestResult {
         let types = vec![record("Overlap", "FirstName", vec!["Api", "First"])];
         let mut map = NameMap::from_types(&types);
         map.register("Overlap", "SecondName", vec!["Api".into(), "Second".into()]);
-        let e = map.lookup("Overlap").expect("overwrite entry");
-        assert_eq!(e.elm_name, "SecondName");
-        assert_eq!(e.module_path, vec!["Api", "Second"]);
+        let e = map.lookup("Overlap").or_fail_with("overwrite entry")?;
+        check!(e.elm_name.as_str()).satisfies(eq("SecondName"))?;
+        check!(module_path_strs(&e.module_path).as_slice())
+            .satisfies(eq(["Api", "Second"].as_slice()))?;
+        Ok(())
     }
 
     #[test]
-    fn register_with_exposed_records_overrides_verbatim() {
+    fn register_with_exposed_records_overrides_verbatim() -> TestResult {
         let mut map = NameMap::from_types(&[]);
         map.register_with_exposed(
             "Patch",
@@ -175,34 +187,32 @@ mod tests {
             vec!["Api".into(), "Patch".into()],
             vec!["Patch".into(), "patch".into(), "patchPair".into()],
         );
-        let e = map.lookup("Patch").expect("Patch entry");
-        assert_eq!(e.elm_name, "Patch");
-        assert_eq!(e.module_path, vec!["Api", "Patch"]);
-        assert_eq!(
-            e.exposed_overrides.as_deref(),
-            Some(
-                &[
-                    "Patch".to_string(),
-                    "patch".to_string(),
-                    "patchPair".to_string()
-                ][..]
-            ),
-        );
+        let e = map.lookup("Patch").or_fail_with("Patch entry")?;
+        check!(e.elm_name.as_str()).satisfies(eq("Patch"))?;
+        check!(module_path_strs(&e.module_path).as_slice())
+            .satisfies(eq(["Api", "Patch"].as_slice()))?;
+        let exposed = e
+            .exposed_overrides
+            .as_deref()
+            .or_fail_with("exposed_overrides should be set")?;
+        check!(module_path_strs(exposed).as_slice())
+            .satisfies(eq(["Patch", "patch", "patchPair"].as_slice()))?;
+        Ok(())
     }
 
     #[test]
-    fn register_leaves_exposed_overrides_unset() {
+    fn register_leaves_exposed_overrides_unset() -> TestResult {
         let mut map = NameMap::from_types(&[]);
         map.register("Money", "Money", vec!["Api".into(), "Money".into()]);
-        let e = map.lookup("Money").expect("Money entry");
-        assert!(
-            e.exposed_overrides.is_none(),
-            "register() must not set exposed_overrides — it's reserved for the with_exposed variant",
-        );
+        let e = map.lookup("Money").or_fail_with("Money entry")?;
+        check!(e.exposed_overrides.is_none())
+            .satisfies(is_true())
+            .context("register() must not set exposed_overrides — it's reserved for the with_exposed variant")?;
+        Ok(())
     }
 
     #[test]
-    fn register_with_exposed_overwrites_prior_register_entry() {
+    fn register_with_exposed_overwrites_prior_register_entry() -> TestResult {
         let mut map = NameMap::from_types(&[]);
         map.register("Patch", "Patch", vec!["Old".into()]);
         map.register_with_exposed(
@@ -211,13 +221,15 @@ mod tests {
             vec!["Api".into(), "Patch".into()],
             vec!["Patch".into(), "patch".into()],
         );
-        let e = map.lookup("Patch").expect("Patch entry");
-        assert_eq!(e.module_path, vec!["Api", "Patch"]);
-        assert!(e.exposed_overrides.is_some());
+        let e = map.lookup("Patch").or_fail_with("Patch entry")?;
+        check!(module_path_strs(&e.module_path).as_slice())
+            .satisfies(eq(["Api", "Patch"].as_slice()))?;
+        check!(e.exposed_overrides.is_some()).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn register_overwrites_prior_register_with_exposed_entry() {
+    fn register_overwrites_prior_register_with_exposed_entry() -> TestResult {
         let mut map = NameMap::from_types(&[]);
         map.register_with_exposed(
             "Patch",
@@ -226,11 +238,12 @@ mod tests {
             vec!["Patch".into(), "patch".into()],
         );
         map.register("Patch", "Patch", vec!["Other".into()]);
-        let e = map.lookup("Patch").expect("Patch entry");
-        assert_eq!(e.module_path, vec!["Other"]);
-        assert!(
-            e.exposed_overrides.is_none(),
-            "plain register() should clear any prior exposed_overrides",
-        );
+        let e = map.lookup("Patch").or_fail_with("Patch entry")?;
+        check!(module_path_strs(&e.module_path).as_slice())
+            .satisfies(eq(["Other"].as_slice()))?;
+        check!(e.exposed_overrides.is_none())
+            .satisfies(is_true())
+            .context("plain register() should clear any prior exposed_overrides")?;
+        Ok(())
     }
 }

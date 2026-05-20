@@ -79,8 +79,7 @@ pub fn run_codegen(types: Vec<ElmTypeInfo>, options: CodegenOptions<'_>) -> Resu
                 "-- {}.elm --\n{}\n",
                 module_path.join("."),
                 elm_ast::pretty_print(&module)
-            )
-            .expect("writing to String can't fail");
+            )?;
         }
         return Ok(CodegenOutcome::DryRun(buffer));
     }

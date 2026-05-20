@@ -212,8 +212,7 @@ fn resolve_path_segments<'a>(
                         name: slot_name,
                         ty: &p.ty,
                     }
-                } else if anonymous_idx < anonymous.len() {
-                    let p = anonymous[anonymous_idx];
+                } else if let Some(&p) = anonymous.get(anonymous_idx) {
                     anonymous_idx += 1;
                     PathSegment::Param {
                         name: slot_name,
@@ -248,6 +247,7 @@ mod tests {
         BodyKind, ElmEndpointInfo, ElmTypeRepr, ExtractorInfo, HttpMethod, PathParam, QueryParam,
         ResponseInfo, ResponseKind,
     };
+    use test_better::prelude::*;
 
     fn fixture(path_template: &'static str, params: Vec<ExtractorInfo>) -> ElmEndpointInfo {
         ElmEndpointInfo {
@@ -543,7 +543,7 @@ mod tests {
     }
 
     #[test]
-    fn flattens_query_body_headers_and_drops_skip() {
+    fn flattens_query_body_headers_and_drops_skip() -> TestResult {
         let info = fixture(
             "/api/v1/items",
             vec![
@@ -566,14 +566,14 @@ mod tests {
             ],
         );
         let slots = normalize_endpoint(&info);
-        let body = slots.body.expect("body should be set");
-        assert_eq!(body.kind, BodyKind::Json);
-        assert_eq!(slots.query.len(), 1);
-        assert_eq!(slots.headers.len(), 1);
-        assert_eq!(slots.query.first().expect("one query param").name, "limit");
-        assert_eq!(
-            slots.headers.first().expect("one header param").name,
-            "X-Trace-Id"
-        );
+        let body = slots.body.or_fail_with("body should be set")?;
+        check!(body.kind).satisfies(eq(BodyKind::Json))?;
+        check!(slots.query.len()).satisfies(eq(1))?;
+        check!(slots.headers.len()).satisfies(eq(1))?;
+        let query = slots.query.first().or_fail_with("one query param")?;
+        check!(query.name).satisfies(eq("limit"))?;
+        let header = slots.headers.first().or_fail_with("one header param")?;
+        check!(header.name).satisfies(eq("X-Trace-Id"))?;
+        Ok(())
     }
 }

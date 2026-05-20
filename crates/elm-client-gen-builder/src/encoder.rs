@@ -417,7 +417,7 @@ fn build_field_pair_list(
 ) -> Spanned<Expr> {
     if let Some(pairs_fn) = f.encoder_pairs {
         let inner_type = match &f.elm_type {
-            ElmTypeRepr::App { args, .. } if !args.is_empty() => &args[0],
+            ElmTypeRepr::App { args, .. } => args.first().unwrap_or(&f.elm_type),
             other => other,
         };
         let inner_encoder = encoder_fn_for_type(inner_type, names, maybe);

@@ -103,6 +103,8 @@ mod tests {
         ElmFieldInfo, ElmTypeInfo, ElmTypeKind, ElmTypeRepr, ElmVariantInfo, ElmVariantPayload,
         EnumRepresentation,
     };
+    use test_better::ErrorKind;
+    use test_better::prelude::*;
 
     fn overrides() -> TypeOverrides {
         let mut o = TypeOverrides::new();
@@ -115,65 +117,76 @@ mod tests {
     }
 
     #[test]
-    fn rewrites_bare_custom() {
+    fn rewrites_bare_custom() -> TestResult {
         let o = overrides();
-        assert!(matches!(
+        check!(matches!(
             o.rewrite(&custom("BigDecimal")),
             ElmTypeRepr::String
-        ));
+        ))
+        .satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn leaves_unknown_custom_untouched() {
+    fn leaves_unknown_custom_untouched() -> TestResult {
         let o = overrides();
-        match o.rewrite(&custom("UserId")) {
-            ElmTypeRepr::Custom(name) => assert_eq!(name, "UserId"),
-            other => panic!("expected Custom, got {other:?}"),
-        }
+        let ElmTypeRepr::Custom(name) = o.rewrite(&custom("UserId")) else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Custom"));
+        };
+        check!(name.as_str()).satisfies(eq("UserId"))?;
+        Ok(())
     }
 
     #[test]
-    fn recurses_through_maybe_list_dict() {
+    fn recurses_through_maybe_list_dict() -> TestResult {
         let o = overrides();
         let nested = ElmTypeRepr::Maybe(Box::new(ElmTypeRepr::List(Box::new(ElmTypeRepr::Dict(
             Box::new(custom("BigDecimal")),
         )))));
-        let rewritten = o.rewrite(&nested);
-        match rewritten {
-            ElmTypeRepr::Maybe(inner) => match *inner {
-                ElmTypeRepr::List(inner) => match *inner {
-                    ElmTypeRepr::Dict(inner) => assert!(matches!(*inner, ElmTypeRepr::String)),
-                    other => panic!("expected Dict, got {other:?}"),
-                },
-                other => panic!("expected List, got {other:?}"),
-            },
-            other => panic!("expected Maybe, got {other:?}"),
-        }
+        let ElmTypeRepr::Maybe(inner) = o.rewrite(&nested) else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Maybe"));
+        };
+        let ElmTypeRepr::List(inner) = *inner else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected List"));
+        };
+        let ElmTypeRepr::Dict(inner) = *inner else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Dict"));
+        };
+        check!(matches!(*inner, ElmTypeRepr::String)).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn recurses_through_tuple_elements() {
+    fn recurses_through_tuple_elements() -> TestResult {
         let o = overrides();
         let t = ElmTypeRepr::Tuple(vec![
             custom("BigDecimal"),
             ElmTypeRepr::Int,
             custom("Unknown"),
         ]);
-        match o.rewrite(&t) {
-            ElmTypeRepr::Tuple(elems) => {
-                assert!(matches!(elems[0], ElmTypeRepr::String));
-                assert!(matches!(elems[1], ElmTypeRepr::Int));
-                match &elems[2] {
-                    ElmTypeRepr::Custom(name) => assert_eq!(name, "Unknown"),
-                    other => panic!("expected Custom(Unknown), got {other:?}"),
-                }
-            }
-            other => panic!("expected Tuple, got {other:?}"),
-        }
+        let ElmTypeRepr::Tuple(elems) = o.rewrite(&t) else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Tuple"));
+        };
+        let first = elems.first().or_fail_with("tuple elem 0")?;
+        let second = elems.get(1).or_fail_with("tuple elem 1")?;
+        let third = elems.get(2).or_fail_with("tuple elem 2")?;
+        check!(matches!(first, ElmTypeRepr::String)).satisfies(is_true())?;
+        check!(matches!(second, ElmTypeRepr::Int)).satisfies(is_true())?;
+        let ElmTypeRepr::Custom(name) = third else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Custom(Unknown)"));
+        };
+        check!(name.as_str()).satisfies(eq("Unknown"))?;
+        Ok(())
     }
 
     #[test]
-    fn recurses_into_app_args_but_leaves_head_untouched() {
+    fn recurses_into_app_args_but_leaves_head_untouched() -> TestResult {
         // The wrapper head (`Patch`) is a user-supplied module name
         // resolved via NameMap, NOT a candidate for the alias rewrite
         // table. Aliases must only fire on the args.
@@ -187,34 +200,41 @@ mod tests {
             head: "Patch".into(),
             args: vec![custom("BigDecimal")],
         };
-        match o.rewrite(&app) {
-            ElmTypeRepr::App { head, args } => {
-                assert_eq!(head, "Patch", "head must not be rewritten");
-                assert_eq!(args.len(), 1);
-                assert!(matches!(args[0], ElmTypeRepr::String));
-            }
-            other => panic!("expected App, got {other:?}"),
-        }
+        let ElmTypeRepr::App { head, args } = o.rewrite(&app) else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected App"));
+        };
+        check!(head.as_str())
+            .satisfies(eq("Patch"))
+            .context("head must not be rewritten")?;
+        check!(args.len()).satisfies(eq(1))?;
+        let first = args.first().or_fail_with("app arg 0")?;
+        check!(matches!(first, ElmTypeRepr::String)).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn recurses_into_nested_app_args() {
+    fn recurses_into_nested_app_args() -> TestResult {
         let o = overrides();
         let nested = ElmTypeRepr::App {
             head: "Patch".into(),
             args: vec![ElmTypeRepr::Maybe(Box::new(custom("BigDecimal")))],
         };
-        match o.rewrite(&nested) {
-            ElmTypeRepr::App { args, .. } => match &args[0] {
-                ElmTypeRepr::Maybe(inner) => assert!(matches!(**inner, ElmTypeRepr::String)),
-                other => panic!("expected Maybe inside App, got {other:?}"),
-            },
-            other => panic!("expected App, got {other:?}"),
-        }
+        let ElmTypeRepr::App { args, .. } = o.rewrite(&nested) else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected App"));
+        };
+        let first = args.first().or_fail_with("app arg 0")?;
+        let ElmTypeRepr::Maybe(inner) = first else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Maybe inside App"));
+        };
+        check!(matches!(**inner, ElmTypeRepr::String)).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn apply_recurses_into_app_args_on_record_field() {
+    fn apply_recurses_into_app_args_on_record_field() -> TestResult {
         let o = overrides();
         let info = ElmTypeInfo {
             rust_name: "Profile",
@@ -239,22 +259,25 @@ mod tests {
         };
         let out = o.apply(info);
         let ElmTypeKind::Record { fields } = out.kind else {
-            panic!("expected Record");
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Record"));
         };
-        match &fields[0].elm_type {
-            ElmTypeRepr::App { head, args } => {
-                assert_eq!(head, "Patch");
-                assert!(matches!(args[0], ElmTypeRepr::String));
-            }
-            other => panic!("expected App, got {other:?}"),
-        }
+        let field = fields.first().or_fail_with("record field 0")?;
+        let ElmTypeRepr::App { head, args } = &field.elm_type else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected App"));
+        };
+        check!(head.as_str()).satisfies(eq("Patch"))?;
+        let first_arg = args.first().or_fail_with("app arg 0")?;
+        check!(matches!(first_arg, ElmTypeRepr::String)).satisfies(is_true())?;
         // Codec hooks pass through untouched.
-        assert_eq!(fields[0].decoder_step, Some("patch"));
-        assert_eq!(fields[0].encoder_pairs, Some("patchPair"));
+        check!(field.decoder_step).satisfies(eq(Some("patch")))?;
+        check!(field.encoder_pairs).satisfies(eq(Some("patchPair")))?;
+        Ok(())
     }
 
     #[test]
-    fn apply_is_idempotent_on_records() {
+    fn apply_is_idempotent_on_records() -> TestResult {
         let o = overrides();
         let info = ElmTypeInfo {
             rust_name: "Order",
@@ -276,11 +299,12 @@ mod tests {
         };
         let once = o.apply(info.clone());
         let twice = o.apply(once.clone());
-        assert_eq!(format!("{:?}", once.kind), format!("{:?}", twice.kind));
+        check!(format!("{:?}", once.kind)).satisfies(eq(format!("{:?}", twice.kind)))?;
+        Ok(())
     }
 
     #[test]
-    fn apply_rewrites_newtype_inner() {
+    fn apply_rewrites_newtype_inner() -> TestResult {
         let o = overrides();
         let info = ElmTypeInfo {
             rust_name: "Money",
@@ -291,14 +315,16 @@ mod tests {
                 inner: custom("BigDecimal"),
             },
         };
-        match o.apply(info).kind {
-            ElmTypeKind::Newtype { inner } => assert!(matches!(inner, ElmTypeRepr::String)),
-            other => panic!("expected Newtype, got {other:?}"),
-        }
+        let ElmTypeKind::Newtype { inner } = o.apply(info).kind else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Newtype"));
+        };
+        check!(matches!(inner, ElmTypeRepr::String)).satisfies(is_true())?;
+        Ok(())
     }
 
     #[test]
-    fn apply_rewrites_enum_variant_payloads() {
+    fn apply_rewrites_enum_variant_payloads() -> TestResult {
         let o = overrides();
         let info = ElmTypeInfo {
             rust_name: "Event",
@@ -340,19 +366,28 @@ mod tests {
         };
         let out = o.apply(info);
         let ElmTypeKind::Enum { variants, .. } = out.kind else {
-            panic!("expected Enum");
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Enum"));
         };
-        match &variants[0].payload {
-            ElmVariantPayload::Newtype(repr) => assert!(matches!(repr, ElmTypeRepr::String)),
-            other => panic!("expected Newtype(String), got {other:?}"),
-        }
-        match &variants[1].payload {
-            ElmVariantPayload::Struct(fields) => match &fields[0].elm_type {
-                ElmTypeRepr::Maybe(inner) => assert!(matches!(**inner, ElmTypeRepr::String)),
-                other => panic!("expected Maybe(String), got {other:?}"),
-            },
-            other => panic!("expected Struct, got {other:?}"),
-        }
-        assert!(matches!(variants[2].payload, ElmVariantPayload::Unit));
+        let v0 = variants.first().or_fail_with("variant 0")?;
+        let v1 = variants.get(1).or_fail_with("variant 1")?;
+        let v2 = variants.get(2).or_fail_with("variant 2")?;
+        let ElmVariantPayload::Newtype(repr) = &v0.payload else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Newtype(String)"));
+        };
+        check!(matches!(repr, ElmTypeRepr::String)).satisfies(is_true())?;
+        let ElmVariantPayload::Struct(fields) = &v1.payload else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Struct"));
+        };
+        let f0 = fields.first().or_fail_with("struct field 0")?;
+        let ElmTypeRepr::Maybe(inner) = &f0.elm_type else {
+            return Err(TestError::new(ErrorKind::Assertion)
+                .with_message("expected Maybe(String)"));
+        };
+        check!(matches!(**inner, ElmTypeRepr::String)).satisfies(is_true())?;
+        check!(matches!(v2.payload, ElmVariantPayload::Unit)).satisfies(is_true())?;
+        Ok(())
     }
 }

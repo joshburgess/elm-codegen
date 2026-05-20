@@ -14,18 +14,21 @@ use elm_client_gen_builder::{
 use elm_client_gen_core::{ElmType, ElmTypeInfo};
 use test_better::prelude::*;
 
-fn render(types: Vec<ElmTypeInfo>) -> String {
+fn render(types: Vec<ElmTypeInfo>) -> TestResult<String> {
     let names = NameMap::from_types(&types);
     render_with_names(types, names)
 }
 
-fn render_with_names(types: Vec<ElmTypeInfo>, names: NameMap) -> String {
+fn render_with_names(types: Vec<ElmTypeInfo>, names: NameMap) -> TestResult<String> {
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups
+        .into_iter()
+        .next()
+        .or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
-    elm_ast::pretty_print(&module)
+    Ok(elm_ast::pretty_print(&module))
 }
 
 // ── Record ──────────────────────────────────────────────────────────
@@ -44,7 +47,7 @@ pub struct SnapPersonApi {
 
 #[test]
 fn snapshot_record_module() -> TestResult {
-    let rendered = render(vec![SnapPersonApi::elm_type_info()]);
+    let rendered = render(vec![SnapPersonApi::elm_type_info()])?;
     insta::assert_snapshot!("record_module", rendered);
     Ok(())
 }
@@ -58,7 +61,7 @@ pub struct SnapUserIdApi(String);
 
 #[test]
 fn snapshot_newtype_module() -> TestResult {
-    let rendered = render(vec![SnapUserIdApi::elm_type_info()]);
+    let rendered = render(vec![SnapUserIdApi::elm_type_info()])?;
     insta::assert_snapshot!("newtype_module", rendered);
     Ok(())
 }
@@ -77,7 +80,7 @@ pub enum SnapStatusApi {
 
 #[test]
 fn snapshot_bare_string_enum_module() -> TestResult {
-    let rendered = render(vec![SnapStatusApi::elm_type_info()]);
+    let rendered = render(vec![SnapStatusApi::elm_type_info()])?;
     insta::assert_snapshot!("bare_string_enum_module", rendered);
     Ok(())
 }
@@ -95,7 +98,7 @@ pub enum SnapEventApi {
 
 #[test]
 fn snapshot_internally_tagged_enum_module() -> TestResult {
-    let rendered = render(vec![SnapEventApi::elm_type_info()]);
+    let rendered = render(vec![SnapEventApi::elm_type_info()])?;
     insta::assert_snapshot!("internally_tagged_enum_module", rendered);
     Ok(())
 }
@@ -113,7 +116,7 @@ pub enum SnapValueApi {
 
 #[test]
 fn snapshot_untagged_enum_module() -> TestResult {
-    let rendered = render(vec![SnapValueApi::elm_type_info()]);
+    let rendered = render(vec![SnapValueApi::elm_type_info()])?;
     insta::assert_snapshot!("untagged_enum_module", rendered);
     Ok(())
 }
@@ -131,7 +134,7 @@ pub struct SnapCoordinatesApi {
 
 #[test]
 fn snapshot_tuple_fields_module() -> TestResult {
-    let rendered = render(vec![SnapCoordinatesApi::elm_type_info()]);
+    let rendered = render(vec![SnapCoordinatesApi::elm_type_info()])?;
     insta::assert_snapshot!("tuple_fields_module", rendered);
     Ok(())
 }
@@ -161,7 +164,7 @@ fn snapshot_merge_tagged_object_module() -> TestResult {
     let rendered = render(vec![
         SnapTaggedAddressApi::elm_type_info(),
         SnapTaggedActionApi::elm_type_info(),
-    ]);
+    ])?;
     insta::assert_snapshot!("merge_tagged_object_module", rendered);
     Ok(())
 }
@@ -206,7 +209,7 @@ fn names_with_patch_module(types: &[ElmTypeInfo]) -> NameMap {
 fn snapshot_patch_field_module() -> TestResult {
     let types = vec![SnapProfilePatchApi::elm_type_info()];
     let names = names_with_patch_module(&types);
-    let rendered = render_with_names(types, names);
+    let rendered = render_with_names(types, names)?;
     insta::assert_snapshot!("patch_field_module", rendered);
     Ok(())
 }
@@ -246,7 +249,7 @@ fn snapshot_imports_collapse_for_same_target_module() -> TestResult {
         SnapMultiPatchRightApi::elm_type_info(),
     ];
     let names = names_with_patch_module(&types);
-    let rendered = render_with_names(types, names);
+    let rendered = render_with_names(types, names)?;
     insta::assert_snapshot!("imports_collapse_for_same_target_module", rendered);
     Ok(())
 }

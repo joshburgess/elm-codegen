@@ -352,7 +352,7 @@ fn build_field_decoder_step(field: &ElmFieldInfo, names: &NameMap) -> Spanned<el
     // payload type) or from the field's own elm_type for non-App fields.
     if let Some(step) = field.decoder_step {
         let inner_type = match &field.elm_type {
-            ElmTypeRepr::App { args, .. } if !args.is_empty() => &args[0],
+            ElmTypeRepr::App { args, .. } => args.first().unwrap_or(&field.elm_type),
             other => other,
         };
         let inner_decoder = decoder_for_type(inner_type, names);

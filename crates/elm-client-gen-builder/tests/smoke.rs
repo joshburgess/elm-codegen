@@ -819,7 +819,7 @@ pub struct ProfilePatchApi {
     pub version: i32,
 }
 
-fn render_with_patch_module(types: Vec<ElmTypeInfo>) -> String {
+fn render_with_patch_module(types: Vec<ElmTypeInfo>) -> TestResult<String> {
     let mut names = NameMap::from_types(&types);
     names.register_with_exposed(
         "Patch",
@@ -836,9 +836,12 @@ fn render_with_patch_module(types: Vec<ElmTypeInfo>) -> String {
     let strategy = DefaultStrategy;
     let maybe = MaybeEncoderRef::new(vec!["Json", "Encode", "Extra"], "maybe");
     let groups = group_by_module(&types);
-    let (module_path, group) = groups.into_iter().next().expect("one module group");
+    let (module_path, group) = groups
+        .into_iter()
+        .next()
+        .or_fail_with("one module group")?;
     let module = build_merged_module(&module_path, &group, &names, &strategy, &maybe);
-    elm_ast::pretty_print(&module)
+    Ok(elm_ast::pretty_print(&module))
 }
 
 #[test]
@@ -854,7 +857,8 @@ fn app_type_repr_carries_head_and_args() -> TestResult {
         ElmTypeRepr::App { head, args } => {
             check!(head.as_str()).satisfies(eq("Patch"))?;
             check!(args.len()).satisfies(eq(1))?;
-            check!(matches!(args[0], ElmTypeRepr::String)).satisfies(is_true())?;
+            let first = args.first().or_fail_with("App should have one arg")?;
+            check!(matches!(first, ElmTypeRepr::String)).satisfies(is_true())?;
         }
         other => return Err(fail(format!("expected App {{ head: Patch, args: [String] }}, got {other:?}"))),
     }
@@ -865,7 +869,7 @@ fn app_type_repr_carries_head_and_args() -> TestResult {
 
 #[test]
 fn app_type_renders_head_with_arg_in_field_annotation() -> TestResult {
-    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
+    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()])?;
     // The displayName field is annotated as `Patch String`, not as a
     // bare `Patch` ident or as `String`.
     check!(rendered.as_str())
@@ -876,7 +880,7 @@ fn app_type_renders_head_with_arg_in_field_annotation() -> TestResult {
 
 #[test]
 fn decoder_step_emits_pipeline_step_combinator() -> TestResult {
-    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
+    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()])?;
     // `decoder_step = "patch"` overrides the default `required` /
     // `optional` step. The rust_name is the JSON key (camelCase here
     // because of `serde(rename_all = "camelCase")`) and the inner
@@ -893,7 +897,7 @@ fn decoder_step_emits_pipeline_step_combinator() -> TestResult {
 
 #[test]
 fn encoder_pairs_wraps_body_in_list_concat() -> TestResult {
-    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
+    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()])?;
     // Any field with `encoder_pairs` flips the whole record encoder
     // body to `Encode.object (List.concat [ ... ])`.
     check!(rendered.contains("Encode.object") && rendered.contains("List.concat"))
@@ -915,7 +919,7 @@ fn encoder_pairs_wraps_body_in_list_concat() -> TestResult {
 
 #[test]
 fn app_type_imports_head_via_register_with_exposed() -> TestResult {
-    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()]);
+    let rendered = render_with_patch_module(vec![ProfilePatchApi::elm_type_info()])?;
     // The Patch wrapper is registered with an explicit exposing list,
     // so the import line uses it verbatim instead of the auto-derived
     // `<elm_name> / <elm_name>Decoder / encode<elm_name>` triple.
@@ -965,7 +969,7 @@ fn patch_field(
     }
 }
 
-fn render_record_with_fields(fields: Vec<elm_client_gen_core::ElmFieldInfo>) -> String {
+fn render_record_with_fields(fields: Vec<elm_client_gen_core::ElmFieldInfo>) -> TestResult<String> {
     use elm_client_gen_core::{ElmTypeInfo, ElmTypeKind};
     let info = ElmTypeInfo {
         rust_name: "Hand",
@@ -985,7 +989,7 @@ fn decoder_step_wins_over_custom_decoder_when_both_set() -> TestResult {
         Some("patch"),
         None,
         None,
-    )]);
+    )])?;
     check!(rendered.as_str())
         .satisfies(contains_str(r#"|> patch "name" Decode.string"#))
         .context(format!("decoder_step should be emitted:\n{rendered}"))?;
@@ -1003,7 +1007,7 @@ fn encoder_pairs_wins_over_custom_encoder_when_both_set() -> TestResult {
         None,
         Some("loserEncoder"),
         Some("patchPair"),
-    )]);
+    )])?;
     check!(rendered.as_str())
         .satisfies(contains_str(r#"patchPair "name" Encode.string value.name"#))
         .context(format!("encoder_pairs should be emitted:\n{rendered}"))?;
@@ -1046,7 +1050,7 @@ fn multiple_app_fields_emit_a_single_import_for_the_wrapper_module() -> TestResu
     let rendered = render_with_patch_module(vec![
         MultiPatchLeftApi::elm_type_info(),
         MultiPatchRightApi::elm_type_info(),
-    ]);
+    ])?;
     let count = rendered.matches("import Api.Patch").count();
     check!(count)
         .satisfies(eq(1))
