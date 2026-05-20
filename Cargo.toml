@@ -11,17 +11,17 @@ members = [
 ]
 
 [workspace.package]
-version = "0.4.3"
+version = "0.4.4"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/joshburgess/elm-client-gen"
 authors = ["Josh Burgess"]
 
 [workspace.dependencies]
-elm-client-gen-core = { path = "crates/elm-client-gen-core", version = "0.4.3", default-features = false }
-elm-client-gen-derive = { path = "crates/elm-client-gen-derive", version = "0.4.3" }
-elm-client-gen-builder = { path = "crates/elm-client-gen-builder", version = "0.4.3" }
-elm-client-gen-http = { path = "crates/elm-client-gen-http", version = "0.4.3" }
+elm-client-gen-core = { path = "crates/elm-client-gen-core", version = "0.4.4", default-features = false }
+elm-client-gen-derive = { path = "crates/elm-client-gen-derive", version = "0.4.4" }
+elm-client-gen-builder = { path = "crates/elm-client-gen-builder", version = "0.4.4" }
+elm-client-gen-http = { path = "crates/elm-client-gen-http", version = "0.4.4" }
 
 elm-ast = "0.2.1"
 inventory = "0.3"
